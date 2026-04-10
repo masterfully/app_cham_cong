@@ -1,455 +1,23 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-
-type FilterType = "all" | "week" | "month";
-
-type WorkRow = {
-  id: string;
-  dayOfWeek: string;
-  date: string;
-  slot: string;
-  hours: number;
-  checked: boolean;
-};
-
-type WorkRowInput = Partial<WorkRow>;
-
-type WorkRowGroup = {
-  date: string;
-  dayOfWeek: string;
-  rows: WorkRow[];
-  shiftCount: number;
-  checkedCount: number;
-  totalHours: number;
-};
-
-type DayDefaultSetting = {
-  id: string;
-  dayOfWeek: string;
-  slot: string;
-};
-
-type DayDefaultSettingInput = Partial<DayDefaultSetting>;
-
-type SlotParts = {
-  startHour: string;
-  startMinute: string;
-  endHour: string;
-  endMinute: string;
-};
-
-type SlotCalculation = {
-  isValid: boolean;
-  slotValue: string;
-  hours: number;
-  errorMessage?: string;
-};
-
-type DayDefaultSettingGroup = {
-  dayOfWeek: string;
-  settings: DayDefaultSetting[];
-};
-
-const STORAGE_KEY = "app-cham-cong-rows-v1";
-const DAY_DEFAULTS_STORAGE_KEY = "app-cham-cong-day-defaults-v1";
-const DAY_NAMES = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-const DAY_NAME_ALIASES: Record<string, string> = {
-  "Chủ Nhật": "CN",
-  "Thứ 2": "T2",
-  "Thứ 3": "T3",
-  "Thứ 4": "T4",
-  "Thứ 5": "T5",
-  "Thứ 6": "T6",
-  "Thứ 7": "T7",
-  CN: "CN",
-  T2: "T2",
-  T3: "T3",
-  T4: "T4",
-  T5: "T5",
-  T6: "T6",
-  T7: "T7"
-};
-
-const FILTERS: Array<{ key: FilterType; label: string }> = [
-  { key: "all", label: "Tất cả" },
-  { key: "week", label: "Tuần này" },
-  { key: "month", label: "Tháng này" }
-];
-
-const DEFAULT_SLOT_PARTS: SlotParts = {
-  startHour: "08",
-  startMinute: "00",
-  endHour: "12",
-  endMinute: "00"
-};
-
-function toISODate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function toDateOnly(dateString: string): Date {
-  const [year, month, day] = dateString.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function formatDate(dateString: string): string {
-  if (!dateString) {
-    return "";
-  }
-  const [, month, day] = dateString.split("-");
-  return `${day}/${month}`;
-}
-
-function formatDateWithYear(dateString: string): string {
-  if (!dateString) {
-    return "dd/mm/yyyy";
-  }
-  const [year, month, day] = dateString.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-function formatHoursAsHourMinute(hours: number): string {
-  if (!Number.isFinite(hours) || hours < 0) {
-    return "0h00p";
-  }
-
-  const totalMinutes = Math.round(hours * 60);
-  const hourPart = Math.floor(totalMinutes / 60);
-  const minutePart = totalMinutes % 60;
-  return `${hourPart}h${String(minutePart).padStart(2, "0")}p`;
-}
-
-function createId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function toTwoDigits(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-function sanitizeTimeInput(value: string): string {
-  return value.replace(/\D/g, "").slice(0, 2);
-}
-
-function parseSlotParts(slot: string): SlotParts {
-  const match = slot.match(/^\s*(\d{1,2})\s*:\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(\d{1,2})\s*$/);
-  if (!match) {
-    return DEFAULT_SLOT_PARTS;
-  }
-
-  const startHour = Number(match[1]);
-  const startMinute = Number(match[2]);
-  const endHour = Number(match[3]);
-  const endMinute = Number(match[4]);
-
-  const isValid =
-    Number.isInteger(startHour) &&
-    Number.isInteger(startMinute) &&
-    Number.isInteger(endHour) &&
-    Number.isInteger(endMinute) &&
-    startHour >= 0 &&
-    startHour <= 23 &&
-    startMinute >= 0 &&
-    startMinute <= 59 &&
-    endHour >= 0 &&
-    endHour <= 23 &&
-    endMinute >= 0 &&
-    endMinute <= 59;
-
-  if (!isValid) {
-    return DEFAULT_SLOT_PARTS;
-  }
-
-  return {
-    startHour: toTwoDigits(startHour),
-    startMinute: toTwoDigits(startMinute),
-    endHour: toTwoDigits(endHour),
-    endMinute: toTwoDigits(endMinute)
-  };
-}
-
-function parseSlotRangeInMinutes(slot: string): { start: number; end: number } | null {
-  const match = slot.match(/^\s*(\d{1,2})\s*:\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(\d{1,2})\s*$/);
-  if (!match) {
-    return null;
-  }
-
-  const startHour = Number(match[1]);
-  const startMinute = Number(match[2]);
-  const endHour = Number(match[3]);
-  const endMinute = Number(match[4]);
-
-  const isValid =
-    Number.isInteger(startHour) &&
-    Number.isInteger(startMinute) &&
-    Number.isInteger(endHour) &&
-    Number.isInteger(endMinute) &&
-    startHour >= 0 &&
-    startHour <= 23 &&
-    startMinute >= 0 &&
-    startMinute <= 59 &&
-    endHour >= 0 &&
-    endHour <= 23 &&
-    endMinute >= 0 &&
-    endMinute <= 59;
-
-  if (!isValid) {
-    return null;
-  }
-
-  const start = startHour * 60 + startMinute;
-  const end = endHour * 60 + endMinute;
-
-  if (end <= start) {
-    return null;
-  }
-
-  return { start, end };
-}
-
-function areTimeRangesOverlapping(leftSlot: string, rightSlot: string): boolean {
-  const leftRange = parseSlotRangeInMinutes(leftSlot);
-  const rightRange = parseSlotRangeInMinutes(rightSlot);
-  if (!leftRange || !rightRange) {
-    return false;
-  }
-
-  return leftRange.start < rightRange.end && rightRange.start < leftRange.end;
-}
-
-function sortSettingsBySlot(settings: DayDefaultSetting[]): DayDefaultSetting[] {
-  return [...settings].sort((left, right) => {
-    const leftStart = parseSlotRangeInMinutes(left.slot)?.start ?? Number.MAX_SAFE_INTEGER;
-    const rightStart = parseSlotRangeInMinutes(right.slot)?.start ?? Number.MAX_SAFE_INTEGER;
-    return leftStart - rightStart;
-  });
-}
-
-function calculateSlotAndHours(startHourText: string, startMinuteText: string, endHourText: string, endMinuteText: string): SlotCalculation {
-  if (!startHourText || !startMinuteText || !endHourText || !endMinuteText) {
-    return {
-      isValid: false,
-      slotValue: "",
-      hours: 0,
-      errorMessage: "Vui lòng nhập đủ giờ bắt đầu và giờ kết thúc."
-    };
-  }
-
-  const startHour = Number(startHourText);
-  const startMinute = Number(startMinuteText);
-  const endHour = Number(endHourText);
-  const endMinute = Number(endMinuteText);
-
-  const isValidTime =
-    Number.isInteger(startHour) &&
-    Number.isInteger(startMinute) &&
-    Number.isInteger(endHour) &&
-    Number.isInteger(endMinute) &&
-    startHour >= 0 &&
-    startHour <= 23 &&
-    startMinute >= 0 &&
-    startMinute <= 59 &&
-    endHour >= 0 &&
-    endHour <= 23 &&
-    endMinute >= 0 &&
-    endMinute <= 59;
-
-  if (!isValidTime) {
-    return {
-      isValid: false,
-      slotValue: "",
-      hours: 0,
-      errorMessage: "Giờ làm không hợp lệ. Giờ từ 00-23, phút từ 00-59."
-    };
-  }
-
-  const startTotalMinute = startHour * 60 + startMinute;
-  const endTotalMinute = endHour * 60 + endMinute;
-  if (endTotalMinute <= startTotalMinute) {
-    return {
-      isValid: false,
-      slotValue: "",
-      hours: 0,
-      errorMessage: "Giờ kết thúc phải sau giờ bắt đầu."
-    };
-  }
-
-  const durationMinutes = endTotalMinute - startTotalMinute;
-  const hours = durationMinutes / 60;
-  const slotValue = `${toTwoDigits(startHour)}:${toTwoDigits(startMinute)} - ${toTwoDigits(endHour)}:${toTwoDigits(endMinute)}`;
-
-  return {
-    isValid: true,
-    slotValue,
-    hours
-  };
-}
-
-function normalizeDayDefaultSetting(setting: DayDefaultSettingInput): DayDefaultSetting | null {
-  const rawDayOfWeek = typeof setting.dayOfWeek === "string" ? setting.dayOfWeek.trim() : "";
-  const normalizedDayOfWeek = DAY_NAME_ALIASES[rawDayOfWeek] ?? "";
-  if (!DAY_NAMES.includes(normalizedDayOfWeek)) {
-    return null;
-  }
-
-  const slot = String(setting.slot ?? "").trim();
-  const slotRange = parseSlotRangeInMinutes(slot);
-  if (!slotRange) {
-    return null;
-  }
-
-  return {
-    id: typeof setting.id === "string" && setting.id.trim() ? setting.id : createId(),
-    dayOfWeek: normalizedDayOfWeek,
-    slot
-  };
-}
-
-function loadDayDefaultSettings(): DayDefaultSetting[] {
-  try {
-    const rawData = localStorage.getItem(DAY_DEFAULTS_STORAGE_KEY);
-    if (!rawData) {
-      return [];
-    }
-
-    const parsedData: unknown = JSON.parse(rawData);
-    if (!Array.isArray(parsedData)) {
-      return [];
-    }
-
-    return parsedData
-      .map((setting) => normalizeDayDefaultSetting(setting as DayDefaultSettingInput))
-      .filter((setting): setting is DayDefaultSetting => setting !== null);
-  } catch (error) {
-    console.warn("Dữ liệu cài đặt mặc định không hợp lệ", error);
-    return [];
-  }
-}
-
-function persistDayDefaultSettings(settings: DayDefaultSetting[]): void {
-  try {
-    localStorage.setItem(DAY_DEFAULTS_STORAGE_KEY, JSON.stringify(settings));
-  } catch (error) {
-    console.warn("Không thể lưu cài đặt mặc định", error);
-  }
-}
-
-function getStartOfWeek(date: Date): Date {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const offsetToMonday = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - offsetToMonday);
-  return start;
-}
-
-function buildSeedRows(): WorkRow[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const templates = [
-    { dayOffset: 0, slot: "08:00 - 12:00", hours: 4.0, checked: true },
-    { dayOffset: 1, slot: "13:00 - 17:00", hours: 4.0, checked: true },
-    { dayOffset: 2, slot: "09:00 - 12:00", hours: 3.0, checked: false },
-    { dayOffset: 4, slot: "18:00 - 20:00", hours: 2.0, checked: true },
-    { dayOffset: 6, slot: "08:00 - 11:00", hours: 3.0, checked: false }
-  ];
-
-  return templates.map((template) => {
-    const rowDate = new Date(today);
-    rowDate.setDate(today.getDate() - template.dayOffset);
-    return {
-      id: createId(),
-      dayOfWeek: DAY_NAMES[rowDate.getDay()],
-      date: toISODate(rowDate),
-      slot: template.slot,
-      hours: template.hours,
-      checked: template.checked
-    };
-  });
-}
-
-function normalizeRow(row: WorkRowInput): WorkRow {
-  const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(row.date ?? "")) ? String(row.date) : toISODate(new Date());
-  const dateObj = toDateOnly(safeDate);
-  const safeHours = Number(row.hours);
-  const rawDayOfWeek = typeof row.dayOfWeek === "string" ? row.dayOfWeek.trim() : "";
-
-  return {
-    id: typeof row.id === "string" ? row.id : createId(),
-    dayOfWeek: DAY_NAME_ALIASES[rawDayOfWeek] ?? DAY_NAMES[dateObj.getDay()],
-    date: safeDate,
-    slot: String(row.slot ?? "").trim(),
-    hours: Number.isFinite(safeHours) && safeHours > 0 ? safeHours : 0.5,
-    checked: Boolean(row.checked)
-  };
-}
-
-function loadRows(): WorkRow[] {
-  try {
-    const rawData = localStorage.getItem(STORAGE_KEY);
-    if (!rawData) {
-      return buildSeedRows();
-    }
-
-    const parsedData: unknown = JSON.parse(rawData);
-    if (!Array.isArray(parsedData) || parsedData.length === 0) {
-      return buildSeedRows();
-    }
-
-    return parsedData.map((row) => normalizeRow(row as WorkRowInput));
-  } catch (error) {
-    console.warn("Dữ liệu localStorage không hợp lệ", error);
-    return buildSeedRows();
-  }
-}
-
-function persistRows(rows: WorkRow[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-  } catch (error) {
-    console.warn("Không thể lưu localStorage", error);
-  }
-}
-
-function getDayNameFromDate(dateString: string): string {
-  return DAY_NAMES[toDateOnly(dateString).getDay()];
-}
-
-function isInFilter(dateString: string, activeFilter: FilterType): boolean {
-  if (activeFilter === "all") {
-    return true;
-  }
-
-  const rowDate = toDateOnly(dateString);
-  rowDate.setHours(0, 0, 0, 0);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (activeFilter === "week") {
-    const weekStart = getStartOfWeek(today);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    return rowDate >= weekStart && rowDate <= weekEnd;
-  }
-
-  return rowDate.getMonth() === today.getMonth() && rowDate.getFullYear() === today.getFullYear();
-}
-
-function matchesSearch(row: WorkRow, searchQuery: string): boolean {
-  if (!searchQuery) {
-    return true;
-  }
-
-  const normalizedQuery = searchQuery.toLowerCase();
-  const searchableText = `${row.dayOfWeek} ${formatDate(row.date)} ${row.slot} ${row.hours}`.toLowerCase();
-  return searchableText.includes(normalizedQuery);
-}
+import { DAY_NAME_ALIASES, DAY_NAMES, DEFAULT_SLOT_PARTS, FILTERS } from "./constants";
+import {
+  formatDate,
+  formatDateWithYear,
+  formatMonthYearLabel,
+  getCurrentYearMonth,
+  isInFilter,
+  parseYearMonth,
+  toISODate
+} from "./utils/date";
+import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
+import { areDateSetsEqual, createId, getDayNameFromDate, loadDayDefaultSettings, loadRows, matchesSearch, normalizeRow, persistDayDefaultSettings, persistRows } from "./utils/storage";
+import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, parseSlotRangeInMinutes, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
+import { DayDefaultSetting, DayDefaultSettingGroup, FilterType, WorkRow, WorkRowGroup } from "./types";
+import DeleteRowConfirmModal from "./components/modals/DeleteRowConfirmModal";
+import DeleteSettingConfirmModal from "./components/modals/DeleteSettingConfirmModal";
+import ExportConfirmModal from "./components/modals/ExportConfirmModal";
+import ExportMonthModal from "./components/modals/ExportMonthModal";
+import ExportResultModal from "./components/modals/ExportResultModal";
 
 function renderSlotDisplay(slot: string): JSX.Element {
   const splitIndex = slot.indexOf("-");
@@ -471,19 +39,6 @@ function renderSlotDisplay(slot: string): JSX.Element {
   );
 }
 
-function areDateSetsEqual(left: Set<string>, right: Set<string>): boolean {
-  if (left.size !== right.size) {
-    return false;
-  }
-
-  for (const value of left) {
-    if (!right.has(value)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 function App(): JSX.Element {
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
   const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
@@ -500,6 +55,13 @@ function App(): JSX.Element {
   const [expandedSettingDays, setExpandedSettingDays] = useState<Set<string>>(() => new Set());
   const [selectedDefaultSettingIndex, setSelectedDefaultSettingIndex] = useState(-1);
   const [pendingDeleteSettingId, setPendingDeleteSettingId] = useState<string | null>(null);
+  const [isExportMonthModalOpen, setIsExportMonthModalOpen] = useState(false);
+  const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
+  const [isExportResultModalOpen, setIsExportResultModalOpen] = useState(false);
+  const [exportMonthValue, setExportMonthValue] = useState(getCurrentYearMonth());
+  const [pendingExportMonthValue, setPendingExportMonthValue] = useState<string | null>(null);
+  const [exportPublicUrl, setExportPublicUrl] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
   const hasInitializedExpandedDates = useRef(false);
 
   const [formDayOfWeek, setFormDayOfWeek] = useState("T2");
@@ -630,6 +192,31 @@ function App(): JSX.Element {
     }
     return dayDefaultSettings.find((setting) => setting.id === pendingDeleteSettingId) ?? null;
   }, [dayDefaultSettings, pendingDeleteSettingId]);
+
+  const pendingExportSummary = useMemo(() => {
+    if (!pendingExportMonthValue) {
+      return null;
+    }
+
+    const parsed = parseYearMonth(pendingExportMonthValue);
+    if (!parsed) {
+      return null;
+    }
+
+    const monthPrefix = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-`;
+    const monthRows = rows.filter((row) => row.date.startsWith(monthPrefix));
+    const dailyRows = buildExportSheetRowsForMonth(rows, parsed.year, parsed.month);
+    const totalHours = monthRows.reduce((sum, row) => sum + Number(row.hours), 0);
+
+    return {
+      year: parsed.year,
+      month: parsed.month,
+      totalShifts: monthRows.length,
+      totalDays: dailyRows.length,
+      totalHours,
+      dailyRows
+    };
+  }, [pendingExportMonthValue, rows]);
 
   const formSlotCalculation = useMemo(
     () => calculateSlotAndHours(formStartHour, formStartMinute, formEndHour, formEndMinute),
@@ -804,6 +391,92 @@ function App(): JSX.Element {
     setIsSettingsFormOpen(false);
     setEditingSettingId(null);
     setExpandedSettingDays(new Set());
+  }
+
+  function openExportMonthModal(): void {
+    setExportMonthValue(getCurrentYearMonth());
+    setIsExportMonthModalOpen(true);
+  }
+
+  function closeExportMonthModal(): void {
+    setIsExportMonthModalOpen(false);
+  }
+
+  function proceedExportConfirmation(): void {
+    if (!exportMonthValue) {
+      showToast("Vui lòng chọn tháng muốn xuất.", "error");
+      return;
+    }
+
+    const parsed = parseYearMonth(exportMonthValue);
+    if (!parsed) {
+      showToast("Tháng xuất không hợp lệ.", "error");
+      return;
+    }
+
+    setPendingExportMonthValue(exportMonthValue);
+    setIsExportMonthModalOpen(false);
+    setIsExportConfirmModalOpen(true);
+  }
+
+  function cancelExportConfirmation(): void {
+    setIsExportConfirmModalOpen(false);
+    setPendingExportMonthValue(null);
+    setIsExportMonthModalOpen(true);
+  }
+
+  async function confirmExportToGoogleSheet(): Promise<void> {
+    if (!pendingExportSummary) {
+      showToast("Không tìm thấy dữ liệu để xuất.", "error");
+      return;
+    }
+
+    if (pendingExportSummary.dailyRows.length === 0) {
+      showToast(`Không có dữ liệu cho ${formatMonthYearLabel(pendingExportMonthValue ?? "")}.`, "error");
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const fileName = `co_hong_thang_${pendingExportSummary.month}_${pendingExportSummary.year}`;
+      const publicUrl = await createGoogleSheetExport({
+        year: pendingExportSummary.year,
+        month: pendingExportSummary.month,
+        fileName,
+        rows: pendingExportSummary.dailyRows
+      });
+
+      setExportPublicUrl(publicUrl);
+      setIsExportConfirmModalOpen(false);
+      setIsExportResultModalOpen(true);
+      setPendingExportMonthValue(null);
+      showToast("Xuất Google Sheet thành công.", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể xuất Google Sheet.";
+      showToast(message, "error");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  function closeExportResultModal(): void {
+    setIsExportResultModalOpen(false);
+    setExportPublicUrl("");
+  }
+
+  async function handleCopyExportUrl(): Promise<void> {
+    if (!exportPublicUrl) {
+      showToast("Chưa có URL để sao chép.", "error");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(exportPublicUrl);
+      showToast("Đã sao chép URL thành công.", "success");
+    } catch {
+      showToast("Không thể sao chép URL.", "error");
+    }
   }
 
   function closeSettingsModal(): void {
@@ -1040,18 +713,28 @@ function App(): JSX.Element {
           <span className="material-symbols-outlined text-primary">schedule</span>
           <h1 className="text-lg font-extrabold text-primary">Quản lý giờ làm</h1>
         </div>
-        <button
-          aria-label="Mở cài đặt giờ mặc định"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
-          type="button"
-          onClick={openSettingsModal}
-        >
-          <span className="material-symbols-outlined">settings</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            aria-label="Xuất Google Sheet"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+            type="button"
+            onClick={openExportMonthModal}
+          >
+            <span className="material-symbols-outlined">ios_share</span>
+          </button>
+          <button
+            aria-label="Mở cài đặt giờ mặc định"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+            type="button"
+            onClick={openSettingsModal}
+          >
+            <span className="material-symbols-outlined">settings</span>
+          </button>
+        </div>
       </header>
 
       {toastState ? (
-        <div className="fixed right-4 top-[4.5rem] z-[80] max-w-[calc(100vw-2rem)]">
+        <div className="fixed right-4 top-[4.5rem] z-[100] max-w-[calc(100vw-2rem)]">
           <div
             className={`toast-panel rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-lg ${
               toastState.tone === "error"
@@ -1255,54 +938,34 @@ function App(): JSX.Element {
         </div>
       </div>
 
-      {pendingDeleteRowId ? (
-        <div
-          className="fixed inset-0 z-[70] flex items-end justify-center bg-on-surface/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              closeDeleteConfirm();
-            }
-          }}
-        >
-          <div className="w-full max-w-sm rounded-t-[2rem] border-t border-white/20 bg-surface p-6 shadow-2xl sm:rounded-3xl">
-            <div className="mx-auto mb-6 h-1.5 w-12 rounded-full bg-surface-variant sm:hidden"></div>
-            <h3 className="mb-2 text-lg font-bold text-on-surface">Xác nhận xóa</h3>
-            <p className="mb-3 text-sm text-on-surface-variant">Bạn có chắc muốn xóa dòng chấm công này không?</p>
-            {pendingDeleteRow ? (
-              <div className="mb-6 space-y-1 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm">
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Thứ:</span> {pendingDeleteRow.dayOfWeek}
-                </p>
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Ngày:</span> {formatDate(pendingDeleteRow.date)}
-                </p>
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Giờ làm:</span> {pendingDeleteRow.slot}
-                </p>
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Tổng giờ:</span> {formatHoursAsHourMinute(pendingDeleteRow.hours)}
-                </p>
-              </div>
-            ) : null}
-            <div className="flex gap-3">
-              <button
-                className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
-                type="button"
-                onClick={closeDeleteConfirm}
-              >
-                Hủy
-              </button>
-              <button
-                className="flex-1 rounded-2xl border border-[#efc6c6] bg-[#fce8e8] py-3 font-semibold text-[#a63737] transition-all hover:bg-[#f9dede] active:scale-95"
-                type="button"
-                onClick={confirmDeleteRow}
-              >
-                Xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DeleteRowConfirmModal isOpen={Boolean(pendingDeleteRowId)} row={pendingDeleteRow} onClose={closeDeleteConfirm} onConfirm={confirmDeleteRow} />
+
+      <ExportMonthModal
+        isOpen={isExportMonthModalOpen}
+        monthValue={exportMonthValue}
+        onMonthChange={setExportMonthValue}
+        onCancel={closeExportMonthModal}
+        onContinue={proceedExportConfirmation}
+      />
+
+      <ExportConfirmModal
+        isOpen={isExportConfirmModalOpen}
+        isExporting={isExporting}
+        monthLabel={formatMonthYearLabel(pendingExportMonthValue ?? "")}
+        summary={
+          pendingExportSummary
+            ? {
+                totalDays: pendingExportSummary.totalDays,
+                totalShifts: pendingExportSummary.totalShifts,
+                totalHoursLabel: formatHoursAsHourMinute(pendingExportSummary.totalHours)
+              }
+            : null
+        }
+        onCancel={cancelExportConfirmation}
+        onConfirm={confirmExportToGoogleSheet}
+      />
+
+      <ExportResultModal isOpen={isExportResultModalOpen} publicUrl={exportPublicUrl} onClose={closeExportResultModal} onCopy={handleCopyExportUrl} />
 
       {isModalOpen ? (
         <div
@@ -1474,48 +1137,12 @@ function App(): JSX.Element {
         </div>
       ) : null}
 
-      {pendingDeleteSettingId ? (
-        <div
-          className="fixed inset-0 z-[76] flex items-end justify-center bg-on-surface/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              closeDeleteSettingConfirm();
-            }
-          }}
-        >
-          <div className="w-full max-w-sm rounded-t-[2rem] border-t border-white/20 bg-surface p-6 shadow-2xl sm:rounded-3xl">
-            <div className="mx-auto mb-6 h-1.5 w-12 rounded-full bg-surface-variant sm:hidden"></div>
-            <h3 className="mb-2 text-lg font-bold text-on-surface">Xác nhận xóa</h3>
-            <p className="mb-3 text-sm text-on-surface-variant">Bạn có chắc muốn xóa giờ mặc định này không?</p>
-            {pendingDeleteSetting ? (
-              <div className="mb-6 space-y-1 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm">
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Thứ:</span> {pendingDeleteSetting.dayOfWeek}
-                </p>
-                <p>
-                  <span className="font-semibold text-on-surface-variant">Giờ làm:</span> {pendingDeleteSetting.slot}
-                </p>
-              </div>
-            ) : null}
-            <div className="flex gap-3">
-              <button
-                className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
-                type="button"
-                onClick={closeDeleteSettingConfirm}
-              >
-                Hủy
-              </button>
-              <button
-                className="flex-1 rounded-2xl border border-[#efc6c6] bg-[#fce8e8] py-3 font-semibold text-[#a63737] transition-all hover:bg-[#f9dede] active:scale-95"
-                type="button"
-                onClick={confirmDeleteDefaultSetting}
-              >
-                Xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DeleteSettingConfirmModal
+        isOpen={Boolean(pendingDeleteSettingId)}
+        setting={pendingDeleteSetting}
+        onClose={closeDeleteSettingConfirm}
+        onConfirm={confirmDeleteDefaultSetting}
+      />
 
       {isSettingsModalOpen ? (
         <div
