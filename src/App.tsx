@@ -13,6 +13,15 @@ type WorkRow = {
 
 type WorkRowInput = Partial<WorkRow>;
 
+type WorkRowGroup = {
+  date: string;
+  dayOfWeek: string;
+  rows: WorkRow[];
+  shiftCount: number;
+  checkedCount: number;
+  totalHours: number;
+};
+
 type SlotParts = {
   startHour: string;
   startMinute: string;
@@ -148,6 +157,45 @@ function parseSlotParts(slot: string): SlotParts {
     endHour: toTwoDigits(endHour),
     endMinute: toTwoDigits(endMinute)
   };
+}
+
+function parseSlotRangeInMinutes(slot: string): { start: number; end: number } | null {
+  const match = slot.match(/^\s*(\d{1,2})\s*:\s*(\d{1,2})\s*-\s*(\d{1,2})\s*:\s*(\d{1,2})\s*$/);
+  if (!match) {
+    return null;
+  }
+
+  const startHour = Number(match[1]);
+  const startMinute = Number(match[2]);
+  const endHour = Number(match[3]);
+  const endMinute = Number(match[4]);
+
+  const isValid =
+    Number.isInteger(startHour) &&
+    Number.isInteger(startMinute) &&
+    Number.isInteger(endHour) &&
+    Number.isInteger(endMinute) &&
+    startHour >= 0 &&
+    startHour <= 23 &&
+    startMinute >= 0 &&
+    startMinute <= 59 &&
+    endHour >= 0 &&
+    endHour <= 23 &&
+    endMinute >= 0 &&
+    endMinute <= 59;
+
+  if (!isValid) {
+    return null;
+  }
+
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+
+  if (end <= start) {
+    return null;
+  }
+
+  return { start, end };
 }
 
 function calculateSlotAndHours(startHourText: string, startMinuteText: string, endHourText: string, endMinuteText: string): SlotCalculation {
@@ -342,6 +390,19 @@ function renderSlotDisplay(slot: string): JSX.Element {
   );
 }
 
+function areDateSetsEqual(left: Set<string>, right: Set<string>): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function App(): JSX.Element {
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
@@ -349,7 +410,8 @@ function App(): JSX.Element {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastState, setToastState] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
 
   const [formDayOfWeek, setFormDayOfWeek] = useState("T2");
   const [formDate, setFormDate] = useState(toISODate(new Date()));
@@ -380,22 +442,72 @@ function App(): JSX.Element {
   }, [isModalOpen]);
 
   useEffect(() => {
-    if (!toastMessage) {
+    if (!toastState) {
       return;
     }
 
     const timerId = window.setTimeout(() => {
-      setToastMessage(null);
-    }, 2200);
+      setToastState(null);
+    }, 3200);
 
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [toastMessage]);
+  }, [toastState]);
 
   const visibleRows = useMemo(() => {
     return rows.filter((row) => isInFilter(row.date, activeFilter) && matchesSearch(row, searchQuery));
   }, [rows, activeFilter, searchQuery]);
+
+  const groupedVisibleRows = useMemo<WorkRowGroup[]>(() => {
+    const groupMap = new Map<string, WorkRow[]>();
+
+    for (const row of visibleRows) {
+      const rowsForDate = groupMap.get(row.date);
+      if (rowsForDate) {
+        rowsForDate.push(row);
+      } else {
+        groupMap.set(row.date, [row]);
+      }
+    }
+
+    return Array.from(groupMap.entries())
+      .sort((left, right) => right[0].localeCompare(left[0]))
+      .map(([date, rowsInDate]) => {
+        const totalHours = rowsInDate.reduce((sum, row) => sum + Number(row.hours), 0);
+        const checkedCount = rowsInDate.reduce((sum, row) => sum + (row.checked ? 1 : 0), 0);
+
+        return {
+          date,
+          dayOfWeek: rowsInDate[0]?.dayOfWeek ?? getDayNameFromDate(date),
+          rows: rowsInDate,
+          shiftCount: rowsInDate.length,
+          checkedCount,
+          totalHours
+        };
+      });
+  }, [visibleRows]);
+
+  useEffect(() => {
+    const todayDate = toISODate(new Date());
+
+    setExpandedDates((previousExpandedDates) => {
+      const visibleDateSet = new Set(groupedVisibleRows.map((group) => group.date));
+      const nextExpandedDates = new Set<string>();
+
+      if (visibleDateSet.has(todayDate)) {
+        nextExpandedDates.add(todayDate);
+      }
+
+      previousExpandedDates.forEach((date) => {
+        if (visibleDateSet.has(date)) {
+          nextExpandedDates.add(date);
+        }
+      });
+
+      return areDateSetsEqual(previousExpandedDates, nextExpandedDates) ? previousExpandedDates : nextExpandedDates;
+    });
+  }, [groupedVisibleRows]);
 
   const selectedRows = useMemo(() => {
     return visibleRows.filter((row) => row.checked);
@@ -473,6 +585,22 @@ function App(): JSX.Element {
     setPendingDeleteRowId(rowId);
   }
 
+  function showToast(message: string, tone: "success" | "error" = "success"): void {
+    setToastState({ message, tone });
+  }
+
+  function toggleGroup(date: string): void {
+    setExpandedDates((previousExpandedDates) => {
+      const nextExpandedDates = new Set(previousExpandedDates);
+      if (nextExpandedDates.has(date)) {
+        nextExpandedDates.delete(date);
+      } else {
+        nextExpandedDates.add(date);
+      }
+      return nextExpandedDates;
+    });
+  }
+
   function closeDeleteConfirm(): void {
     setPendingDeleteRowId(null);
   }
@@ -483,7 +611,7 @@ function App(): JSX.Element {
     }
     setRows((previousRows) => previousRows.filter((row) => row.id !== pendingDeleteRowId));
     setPendingDeleteRowId(null);
-    setToastMessage("Xóa dòng thành công");
+    showToast("Xóa dòng thành công", "success");
   }
 
   function handleSubmitRow(event: FormEvent<HTMLFormElement>): void {
@@ -492,13 +620,13 @@ function App(): JSX.Element {
     const isEditing = Boolean(editingRowId);
 
     if (!formDayOfWeek || !formDate) {
-      alert("Vui lòng nhập đầy đủ thông tin hợp lệ.");
+      showToast("Vui lòng nhập đầy đủ thông tin hợp lệ.", "error");
       return;
     }
 
     const slotCalculation = calculateSlotAndHours(formStartHour, formStartMinute, formEndHour, formEndMinute);
     if (!slotCalculation.isValid) {
-      alert(slotCalculation.errorMessage || "Giờ làm không hợp lệ.");
+      showToast(slotCalculation.errorMessage || "Giờ làm không hợp lệ.", "error");
       return;
     }
 
@@ -508,8 +636,38 @@ function App(): JSX.Element {
       date: formDate,
       slot: slotCalculation.slotValue,
       hours: slotCalculation.hours,
-      checked: true
+      checked: false
     });
+
+    const isDuplicateRow = rows.some((row) => row.id !== newRow.id && row.date === newRow.date && row.slot === newRow.slot);
+    if (isDuplicateRow) {
+      showToast("Dòng bị trùng: cùng ngày và cùng giờ làm đã tồn tại.", "error");
+      return;
+    }
+
+    const newSlotRange = parseSlotRangeInMinutes(newRow.slot);
+    if (!newSlotRange) {
+      showToast("Giờ làm không hợp lệ.", "error");
+      return;
+    }
+
+    const hasOverlappingSlot = rows.some((row) => {
+      if (row.id === newRow.id || row.date !== newRow.date) {
+        return false;
+      }
+
+      const existingSlotRange = parseSlotRangeInMinutes(row.slot);
+      if (!existingSlotRange) {
+        return false;
+      }
+
+      return newSlotRange.start < existingSlotRange.end && existingSlotRange.start < newSlotRange.end;
+    });
+
+    if (hasOverlappingSlot) {
+      showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày.", "error");
+      return;
+    }
 
     setRows((previousRows) => {
       if (!editingRowId) {
@@ -531,7 +689,7 @@ function App(): JSX.Element {
       });
     });
     closeModal();
-    setToastMessage(isEditing ? "Cập nhật dòng thành công" : "Thêm dòng thành công");
+    showToast(isEditing ? "Cập nhật dòng thành công" : "Thêm dòng thành công", "success");
   }
 
   return (
@@ -544,10 +702,16 @@ function App(): JSX.Element {
         <span className="material-symbols-outlined text-on-surface-variant">account_circle</span>
       </header>
 
-      {toastMessage ? (
+      {toastState ? (
         <div className="fixed right-4 top-[4.5rem] z-[80] max-w-[calc(100vw-2rem)]">
-          <div className="toast-panel rounded-xl border border-[#2a5560] bg-[#133e48] px-4 py-2 text-center text-sm font-semibold text-[#eaf6f8] shadow-lg">
-            {toastMessage}
+          <div
+            className={`toast-panel rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-lg ${
+              toastState.tone === "error"
+                ? "border border-[#d28b8b] bg-[#6f2d2d] text-[#fff1f1]"
+                : "border border-[#2a5560] bg-[#133e48] text-[#eaf6f8]"
+            }`}
+          >
+            {toastState.message}
           </div>
         </div>
       ) : null}
@@ -607,58 +771,93 @@ function App(): JSX.Element {
             </span>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-soft">
-            <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-2 bg-surface-container px-4 py-3 text-[10px] font-black uppercase tracking-tighter text-on-surface-variant">
-              <div className="col-span-1 text-center"></div>
-              <div className="col-span-1 text-center">Thứ</div>
-              <div className="col-span-2 text-center">Ngày</div>
-              <div className="col-span-2 text-center">Giờ làm</div>
-              <div className="col-span-3 text-center">Tổng giờ</div>
-              <div className="col-span-1 text-center">Sửa</div>
-              <div className="col-span-1 text-center">Xóa</div>
-            </div>
+          <div className="space-y-3">
+            {groupedVisibleRows.map((group) => {
+              const isExpanded = expandedDates.has(group.date);
 
-            <div className="divide-y divide-outline-variant/15">
-              {visibleRows.map((row, index) => {
-                const zebraClass = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                return (
-                  <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${zebraClass}`} key={row.id}>
-                    <div className="col-span-1 flex justify-center">
-                      <input
-                        checked={row.checked}
-                        className="rounded border-outline-variant text-primary focus:ring-primary"
-                        type="checkbox"
-                        onChange={(event) => handleToggleRow(row.id, event.target.checked)}
-                      />
+              return (
+                <div className="overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-soft" key={group.date}>
+                  <button
+                    aria-expanded={isExpanded}
+                    className="w-full px-4 py-3 text-left transition-colors hover:bg-surface-container"
+                    type="button"
+                    onClick={() => toggleGroup(group.date)}
+                  >
+                    <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2">
+                      <div className="col-span-1 flex justify-center">
+                        <span className={`material-symbols-outlined text-on-surface-variant transition-transform ${isExpanded ? "rotate-180" : "rotate-0"}`}>
+                          expand_more
+                        </span>
+                      </div>
+                      <div className="col-span-4 text-sm font-black text-primary">
+                        {group.dayOfWeek} - {formatDate(group.date)}
+                      </div>
+                      <div className="col-span-3 flex justify-center">
+                        <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{group.shiftCount} ca</span>
+                      </div>
+                      <div className="col-span-3 text-right text-sm font-bold text-on-surface">{formatHoursAsHourMinute(group.totalHours)}</div>
                     </div>
-                    <div className="col-span-1 text-center text-sm font-bold text-primary">{row.dayOfWeek}</div>
-                    <div className="col-span-2 text-center text-xs text-on-surface-variant">{formatDate(row.date)}</div>
-                    <div className="col-span-2 text-xs font-medium">{renderSlotDisplay(row.slot)}</div>
-                    <div className="col-span-3 text-center text-sm font-bold">{formatHoursAsHourMinute(row.hours)}</div>
-                    <div className="col-span-1 flex justify-center">
-                      <button
-                        aria-label="Sửa dòng"
-                        className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
-                        type="button"
-                        onClick={() => handleEditRow(row.id)}
-                      >
-                        <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
-                      </button>
+                    <div className="mt-1 pl-9 text-[11px] font-medium text-on-surface-variant">{group.checkedCount}/{group.shiftCount} dòng đã chọn</div>
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="border-t border-outline-variant/15">
+                      <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-2 bg-surface-container px-4 py-3 text-[10px] font-black uppercase tracking-tighter text-on-surface-variant">
+                        <div className="col-span-1 text-center"></div>
+                        <div className="col-span-1 text-center">Thứ</div>
+                        <div className="col-span-2 text-center">Ngày</div>
+                        <div className="col-span-2 text-center">Giờ làm</div>
+                        <div className="col-span-3 text-center">Tổng giờ</div>
+                        <div className="col-span-1 text-center">Sửa</div>
+                        <div className="col-span-1 text-center">Xóa</div>
+                      </div>
+
+                      <div className="divide-y divide-outline-variant/15">
+                        {group.rows.map((row, index) => {
+                          const zebraClass = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                          return (
+                            <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${zebraClass}`} key={row.id}>
+                              <div className="col-span-1 flex justify-center">
+                                <input
+                                  checked={row.checked}
+                                  className="rounded border-outline-variant text-primary focus:ring-primary"
+                                  type="checkbox"
+                                  onChange={(event) => handleToggleRow(row.id, event.target.checked)}
+                                />
+                              </div>
+                              <div className="col-span-1 text-center text-sm font-bold text-primary">{row.dayOfWeek}</div>
+                              <div className="col-span-2 text-center text-xs text-on-surface-variant">{formatDate(row.date)}</div>
+                              <div className="col-span-2 text-xs font-medium">{renderSlotDisplay(row.slot)}</div>
+                              <div className="col-span-3 text-center text-sm font-bold">{formatHoursAsHourMinute(row.hours)}</div>
+                              <div className="col-span-1 flex justify-center">
+                                <button
+                                  aria-label="Sửa dòng"
+                                  className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
+                                  type="button"
+                                  onClick={() => handleEditRow(row.id)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
+                                </button>
+                              </div>
+                              <div className="col-span-1 flex justify-center">
+                                <button
+                                  aria-label="Xóa dòng"
+                                  className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
+                                  type="button"
+                                  onClick={() => openDeleteConfirm(row.id)}
+                                >
+                                  <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="col-span-1 flex justify-center">
-                      <button
-                        aria-label="Xóa dòng"
-                        className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
-                        type="button"
-                        onClick={() => openDeleteConfirm(row.id)}
-                      >
-                        <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
 
           {visibleRows.length === 0 ? (
