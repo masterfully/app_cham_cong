@@ -22,6 +22,13 @@ type WorkRowGroup = {
   totalHours: number;
 };
 
+type DayDefaultSetting = {
+  dayOfWeek: string;
+  slot: string;
+};
+
+type DayDefaultSettingInput = Partial<DayDefaultSetting>;
+
 type SlotParts = {
   startHour: string;
   startMinute: string;
@@ -37,6 +44,7 @@ type SlotCalculation = {
 };
 
 const STORAGE_KEY = "app-cham-cong-rows-v1";
+const DAY_DEFAULTS_STORAGE_KEY = "app-cham-cong-day-defaults-v1";
 const DAY_NAMES = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const DAY_NAME_ALIASES: Record<string, string> = {
   "Chủ Nhật": "CN",
@@ -258,6 +266,54 @@ function calculateSlotAndHours(startHourText: string, startMinuteText: string, e
   };
 }
 
+function normalizeDayDefaultSetting(setting: DayDefaultSettingInput): DayDefaultSetting | null {
+  const rawDayOfWeek = typeof setting.dayOfWeek === "string" ? setting.dayOfWeek.trim() : "";
+  const normalizedDayOfWeek = DAY_NAME_ALIASES[rawDayOfWeek] ?? "";
+  if (!DAY_NAMES.includes(normalizedDayOfWeek)) {
+    return null;
+  }
+
+  const slot = String(setting.slot ?? "").trim();
+  const slotRange = parseSlotRangeInMinutes(slot);
+  if (!slotRange) {
+    return null;
+  }
+
+  return {
+    dayOfWeek: normalizedDayOfWeek,
+    slot
+  };
+}
+
+function loadDayDefaultSettings(): DayDefaultSetting[] {
+  try {
+    const rawData = localStorage.getItem(DAY_DEFAULTS_STORAGE_KEY);
+    if (!rawData) {
+      return [];
+    }
+
+    const parsedData: unknown = JSON.parse(rawData);
+    if (!Array.isArray(parsedData)) {
+      return [];
+    }
+
+    return parsedData
+      .map((setting) => normalizeDayDefaultSetting(setting as DayDefaultSettingInput))
+      .filter((setting): setting is DayDefaultSetting => setting !== null);
+  } catch (error) {
+    console.warn("Dữ liệu cài đặt mặc định không hợp lệ", error);
+    return [];
+  }
+}
+
+function persistDayDefaultSettings(settings: DayDefaultSetting[]): void {
+  try {
+    localStorage.setItem(DAY_DEFAULTS_STORAGE_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.warn("Không thể lưu cài đặt mặc định", error);
+  }
+}
+
 function getStartOfWeek(date: Date): Date {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
@@ -405,9 +461,13 @@ function areDateSetsEqual(left: Set<string>, right: Set<string>): boolean {
 
 function App(): JSX.Element {
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
+  const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isSettingsFormOpen, setIsSettingsFormOpen] = useState(false);
+  const [editingSettingDay, setEditingSettingDay] = useState<string | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
   const [toastState, setToastState] = useState<{ message: string; tone: "success" | "error" } | null>(null);
@@ -420,9 +480,19 @@ function App(): JSX.Element {
   const [formEndHour, setFormEndHour] = useState(DEFAULT_SLOT_PARTS.endHour);
   const [formEndMinute, setFormEndMinute] = useState(DEFAULT_SLOT_PARTS.endMinute);
 
+  const [settingFormDayOfWeek, setSettingFormDayOfWeek] = useState("T2");
+  const [settingFormStartHour, setSettingFormStartHour] = useState(DEFAULT_SLOT_PARTS.startHour);
+  const [settingFormStartMinute, setSettingFormStartMinute] = useState(DEFAULT_SLOT_PARTS.startMinute);
+  const [settingFormEndHour, setSettingFormEndHour] = useState(DEFAULT_SLOT_PARTS.endHour);
+  const [settingFormEndMinute, setSettingFormEndMinute] = useState(DEFAULT_SLOT_PARTS.endMinute);
+
   useEffect(() => {
     persistRows(rows);
   }, [rows]);
+
+  useEffect(() => {
+    persistDayDefaultSettings(dayDefaultSettings);
+  }, [dayDefaultSettings]);
 
   useEffect(() => {
     if (!isModalOpen) {
@@ -529,15 +599,48 @@ function App(): JSX.Element {
     [formStartHour, formStartMinute, formEndHour, formEndMinute]
   );
 
+  const settingFormSlotCalculation = useMemo(
+    () => calculateSlotAndHours(settingFormStartHour, settingFormStartMinute, settingFormEndHour, settingFormEndMinute),
+    [settingFormStartHour, settingFormStartMinute, settingFormEndHour, settingFormEndMinute]
+  );
+
+  const defaultSettingForFormDay = useMemo(
+    () => dayDefaultSettings.find((setting) => setting.dayOfWeek === formDayOfWeek) ?? null,
+    [dayDefaultSettings, formDayOfWeek]
+  );
+
+  const orderedDayDefaultSettings = useMemo(() => {
+    const dayIndex = new Map(DAY_NAMES.map((dayName, index) => [dayName, index]));
+    return [...dayDefaultSettings].sort((left, right) => {
+      const leftIndex = dayIndex.get(left.dayOfWeek) ?? 999;
+      const rightIndex = dayIndex.get(right.dayOfWeek) ?? 999;
+      return leftIndex - rightIndex;
+    });
+  }, [dayDefaultSettings]);
+
+  useEffect(() => {
+    if (!isModalOpen || !defaultSettingForFormDay) {
+      return;
+    }
+
+    const parts = parseSlotParts(defaultSettingForFormDay.slot);
+    setFormStartHour(parts.startHour);
+    setFormStartMinute(parts.startMinute);
+    setFormEndHour(parts.endHour);
+    setFormEndMinute(parts.endMinute);
+  }, [isModalOpen, defaultSettingForFormDay]);
+
   function openModal(): void {
     const defaultDate = toISODate(new Date());
     setEditingRowId(null);
     setFormDate(defaultDate);
     setFormDayOfWeek(getDayNameFromDate(defaultDate));
-    setFormStartHour(DEFAULT_SLOT_PARTS.startHour);
-    setFormStartMinute(DEFAULT_SLOT_PARTS.startMinute);
-    setFormEndHour(DEFAULT_SLOT_PARTS.endHour);
-    setFormEndMinute(DEFAULT_SLOT_PARTS.endMinute);
+    const defaultSetting = dayDefaultSettings.find((setting) => setting.dayOfWeek === getDayNameFromDate(defaultDate));
+    const parts = defaultSetting ? parseSlotParts(defaultSetting.slot) : DEFAULT_SLOT_PARTS;
+    setFormStartHour(parts.startHour);
+    setFormStartMinute(parts.startMinute);
+    setFormEndHour(parts.endHour);
+    setFormEndMinute(parts.endMinute);
     setIsModalOpen(true);
   }
 
@@ -555,7 +658,8 @@ function App(): JSX.Element {
     setEditingRowId(rowId);
     setFormDayOfWeek(rowToEdit.dayOfWeek);
     setFormDate(rowToEdit.date);
-    const slotParts = parseSlotParts(rowToEdit.slot);
+    const defaultSetting = dayDefaultSettings.find((setting) => setting.dayOfWeek === rowToEdit.dayOfWeek);
+    const slotParts = parseSlotParts(defaultSetting ? defaultSetting.slot : rowToEdit.slot);
     setFormStartHour(slotParts.startHour);
     setFormStartMinute(slotParts.startMinute);
     setFormEndHour(slotParts.endHour);
@@ -585,6 +689,50 @@ function App(): JSX.Element {
     setPendingDeleteRowId(rowId);
   }
 
+  function openSettingsModal(): void {
+    setIsSettingsModalOpen(true);
+    setIsSettingsFormOpen(false);
+    setEditingSettingDay(null);
+  }
+
+  function closeSettingsModal(): void {
+    setIsSettingsModalOpen(false);
+    setIsSettingsFormOpen(false);
+    setEditingSettingDay(null);
+  }
+
+  function openAddSettingForm(): void {
+    const firstMissingDay = DAY_NAMES.find((dayName) => !dayDefaultSettings.some((setting) => setting.dayOfWeek === dayName)) ?? DAY_NAMES[0];
+    setEditingSettingDay(null);
+    setSettingFormDayOfWeek(firstMissingDay);
+    setSettingFormStartHour(DEFAULT_SLOT_PARTS.startHour);
+    setSettingFormStartMinute(DEFAULT_SLOT_PARTS.startMinute);
+    setSettingFormEndHour(DEFAULT_SLOT_PARTS.endHour);
+    setSettingFormEndMinute(DEFAULT_SLOT_PARTS.endMinute);
+    setIsSettingsFormOpen(true);
+  }
+
+  function openEditSettingForm(dayOfWeek: string): void {
+    const setting = dayDefaultSettings.find((item) => item.dayOfWeek === dayOfWeek);
+    if (!setting) {
+      return;
+    }
+
+    const parts = parseSlotParts(setting.slot);
+    setEditingSettingDay(dayOfWeek);
+    setSettingFormDayOfWeek(dayOfWeek);
+    setSettingFormStartHour(parts.startHour);
+    setSettingFormStartMinute(parts.startMinute);
+    setSettingFormEndHour(parts.endHour);
+    setSettingFormEndMinute(parts.endMinute);
+    setIsSettingsFormOpen(true);
+  }
+
+  function closeSettingsForm(): void {
+    setIsSettingsFormOpen(false);
+    setEditingSettingDay(null);
+  }
+
   function showToast(message: string, tone: "success" | "error" = "success"): void {
     setToastState({ message, tone });
   }
@@ -599,6 +747,36 @@ function App(): JSX.Element {
       }
       return nextExpandedDates;
     });
+  }
+
+  function handleSubmitDayDefaultSetting(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+
+    const slotCalculation = calculateSlotAndHours(settingFormStartHour, settingFormStartMinute, settingFormEndHour, settingFormEndMinute);
+    if (!slotCalculation.isValid) {
+      showToast(slotCalculation.errorMessage || "Giờ mặc định không hợp lệ.", "error");
+      return;
+    }
+
+    const normalizedDay = DAY_NAME_ALIASES[settingFormDayOfWeek] ?? settingFormDayOfWeek;
+
+    const isDuplicateDay = dayDefaultSettings.some((setting) => setting.dayOfWeek === normalizedDay && setting.dayOfWeek !== editingSettingDay);
+    if (isDuplicateDay) {
+      showToast("Ngày này đã có cài đặt mặc định.", "error");
+      return;
+    }
+
+    setDayDefaultSettings((previousSettings) => {
+      const nextSettings = previousSettings.filter((setting) => setting.dayOfWeek !== editingSettingDay && setting.dayOfWeek !== normalizedDay);
+      nextSettings.push({
+        dayOfWeek: normalizedDay,
+        slot: slotCalculation.slotValue
+      });
+      return nextSettings;
+    });
+
+    closeSettingsForm();
+    showToast(editingSettingDay ? "Cập nhật giờ mặc định thành công" : "Thêm giờ mặc định thành công", "success");
   }
 
   function closeDeleteConfirm(): void {
@@ -699,7 +877,14 @@ function App(): JSX.Element {
           <span className="material-symbols-outlined text-primary">schedule</span>
           <h1 className="text-lg font-extrabold text-primary">Quản lý giờ làm</h1>
         </div>
-        <span className="material-symbols-outlined text-on-surface-variant">account_circle</span>
+        <button
+          aria-label="Mở cài đặt giờ mặc định"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+          type="button"
+          onClick={openSettingsModal}
+        >
+          <span className="material-symbols-outlined">settings</span>
+        </button>
       </header>
 
       {toastState ? (
@@ -1041,6 +1226,11 @@ function App(): JSX.Element {
                     onChange={(event) => setFormEndMinute(sanitizeTimeInput(event.target.value))}
                   />
                 </div>
+                {defaultSettingForFormDay ? (
+                  <p className="ml-1 text-[11px] text-on-surface-variant">
+                    Gợi ý giờ mặc định của {formDayOfWeek}: {defaultSettingForFormDay.slot}. Bạn vẫn có thể chỉnh tay.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-1.5">
@@ -1072,6 +1262,151 @@ function App(): JSX.Element {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isSettingsModalOpen ? (
+        <div
+          className="fixed inset-0 z-[75] flex items-end justify-center bg-on-surface/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeSettingsModal();
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-t-[2rem] border-t border-white/20 bg-surface p-6 shadow-2xl sm:rounded-3xl">
+            <div className="mx-auto mb-6 h-1.5 w-12 rounded-full bg-surface-variant sm:hidden"></div>
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-primary">Giờ mặc định theo thứ</h3>
+              <button
+                className="flex h-6 w-8 items-center justify-center rounded-full border border-[#d5dde0] bg-white/75 text-[#5b6669] transition-colors hover:bg-[#e8f4f7] hover:text-[#0f5d6b]"
+                type="button"
+                onClick={closeSettingsModal}
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            {!isSettingsFormOpen ? (
+              <div className="space-y-4">
+                <button
+                  className="w-full rounded-xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 text-sm font-semibold text-[#0f5d6b] transition-all hover:bg-[#dff0f4] active:scale-95"
+                  type="button"
+                  onClick={openAddSettingForm}
+                >
+                  <span className="material-symbols-outlined mr-1 align-middle text-base">add</span>
+                  <span className="align-middle">Thêm cài đặt mới</span>
+                </button>
+
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {orderedDayDefaultSettings.length === 0 ? (
+                    <p className="rounded-xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">Chưa có giờ mặc định nào.</p>
+                  ) : (
+                    orderedDayDefaultSettings.map((setting) => (
+                      <div className="flex items-center justify-between rounded-xl border border-outline-variant/40 bg-surface-container-low px-3 py-3" key={setting.dayOfWeek}>
+                        <div>
+                          <p className="text-sm font-bold text-primary">{setting.dayOfWeek}</p>
+                          <p className="text-xs text-on-surface-variant">{setting.slot}</p>
+                        </div>
+                        <button
+                          className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
+                          type="button"
+                          onClick={() => openEditSettingForm(setting.dayOfWeek)}
+                        >
+                          <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <form className="space-y-4" onSubmit={handleSubmitDayDefaultSetting}>
+                <div className="space-y-1.5">
+                  <label className="ml-1 text-[11px] font-bold uppercase text-on-surface-variant" htmlFor="settingFormDayOfWeek">
+                    Thứ
+                  </label>
+                  <select
+                    className="w-full rounded-xl border-none bg-surface-container-highest px-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/20"
+                    disabled={Boolean(editingSettingDay)}
+                    id="settingFormDayOfWeek"
+                    required
+                    value={settingFormDayOfWeek}
+                    onChange={(event) => setSettingFormDayOfWeek(event.target.value)}
+                  >
+                    {DAY_NAMES.map((dayName) => (
+                      <option key={dayName} value={dayName}>
+                        {dayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="ml-1 text-[11px] font-bold uppercase text-on-surface-variant" htmlFor="settingFormStartHour">
+                    Giờ mặc định (HH:MM - HH:MM)
+                  </label>
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl bg-surface-container-highest px-3 py-3">
+                    <input
+                      className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
+                      id="settingFormStartHour"
+                      inputMode="numeric"
+                      placeholder="HH"
+                      required
+                      value={settingFormStartHour}
+                      onChange={(event) => setSettingFormStartHour(sanitizeTimeInput(event.target.value))}
+                    />
+                    <span className="text-sm font-bold text-on-surface-variant">:</span>
+                    <input
+                      className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
+                      inputMode="numeric"
+                      placeholder="MM"
+                      required
+                      value={settingFormStartMinute}
+                      onChange={(event) => setSettingFormStartMinute(sanitizeTimeInput(event.target.value))}
+                    />
+                    <span className="px-1 text-sm font-black text-on-surface-variant">-</span>
+                    <input
+                      className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
+                      inputMode="numeric"
+                      placeholder="HH"
+                      required
+                      value={settingFormEndHour}
+                      onChange={(event) => setSettingFormEndHour(sanitizeTimeInput(event.target.value))}
+                    />
+                    <span className="text-sm font-bold text-on-surface-variant">:</span>
+                    <input
+                      className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
+                      inputMode="numeric"
+                      placeholder="MM"
+                      required
+                      value={settingFormEndMinute}
+                      onChange={(event) => setSettingFormEndMinute(sanitizeTimeInput(event.target.value))}
+                    />
+                  </div>
+                  <p className="ml-1 text-[11px] text-on-surface-variant">
+                    Tổng giờ: {settingFormSlotCalculation.isValid ? formatHoursAsHourMinute(settingFormSlotCalculation.hours) : "--"}
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
+                    type="button"
+                    onClick={closeSettingsForm}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    className="flex-1 rounded-2xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 font-semibold text-[#0f5d6b] shadow-sm transition-all hover:bg-[#dff0f4] active:scale-95"
+                    type="submit"
+                  >
+                    {editingSettingDay ? "Cập nhật" : "Lưu lại"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       ) : null}
