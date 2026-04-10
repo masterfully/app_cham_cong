@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type FilterType = "all" | "week" | "month";
 
@@ -499,6 +499,8 @@ function App(): JSX.Element {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
   const [expandedSettingDays, setExpandedSettingDays] = useState<Set<string>>(() => new Set());
   const [selectedDefaultSettingIndex, setSelectedDefaultSettingIndex] = useState(-1);
+  const [pendingDeleteSettingId, setPendingDeleteSettingId] = useState<string | null>(null);
+  const hasInitializedExpandedDates = useRef(false);
 
   const [formDayOfWeek, setFormDayOfWeek] = useState("T2");
   const [formDate, setFormDate] = useState(toISODate(new Date()));
@@ -592,8 +594,9 @@ function App(): JSX.Element {
       const visibleDateSet = new Set(groupedVisibleRows.map((group) => group.date));
       const nextExpandedDates = new Set<string>();
 
-      if (visibleDateSet.has(todayDate)) {
+      if (!hasInitializedExpandedDates.current && visibleDateSet.has(todayDate)) {
         nextExpandedDates.add(todayDate);
+        hasInitializedExpandedDates.current = true;
       }
 
       previousExpandedDates.forEach((date) => {
@@ -620,6 +623,13 @@ function App(): JSX.Element {
     }
     return rows.find((row) => row.id === pendingDeleteRowId) ?? null;
   }, [rows, pendingDeleteRowId]);
+
+  const pendingDeleteSetting = useMemo(() => {
+    if (!pendingDeleteSettingId) {
+      return null;
+    }
+    return dayDefaultSettings.find((setting) => setting.id === pendingDeleteSettingId) ?? null;
+  }, [dayDefaultSettings, pendingDeleteSettingId]);
 
   const formSlotCalculation = useMemo(
     () => calculateSlotAndHours(formStartHour, formStartMinute, formEndHour, formEndMinute),
@@ -774,6 +784,17 @@ function App(): JSX.Element {
     );
   }
 
+  function handleCheckAllInGroup(date: string, checked: boolean): void {
+    setRows((previousRows) =>
+      previousRows.map((row) => {
+        if (row.date !== date) {
+          return row;
+        }
+        return { ...row, checked };
+      })
+    );
+  }
+
   function openDeleteConfirm(rowId: string): void {
     setPendingDeleteRowId(rowId);
   }
@@ -820,6 +841,24 @@ function App(): JSX.Element {
   function closeSettingsForm(): void {
     setIsSettingsFormOpen(false);
     setEditingSettingId(null);
+  }
+
+  function handleDeleteDefaultSetting(settingId: string): void {
+    setPendingDeleteSettingId(settingId);
+  }
+
+  function confirmDeleteDefaultSetting(): void {
+    if (!pendingDeleteSettingId) {
+      return;
+    }
+
+    setDayDefaultSettings((previousSettings) => previousSettings.filter((setting) => setting.id !== pendingDeleteSettingId));
+    setPendingDeleteSettingId(null);
+    showToast("Xóa giờ mặc định thành công", "success");
+  }
+
+  function closeDeleteSettingConfirm(): void {
+    setPendingDeleteSettingId(null);
   }
 
   function showToast(message: string, tone: "success" | "error" = "success"): void {
@@ -1086,17 +1125,22 @@ function App(): JSX.Element {
 
               return (
                 <div className="overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-soft" key={group.date}>
-                  <button
-                    aria-expanded={isExpanded}
-                    className="w-full px-4 py-3 text-left transition-colors hover:bg-surface-container"
-                    type="button"
+                  <div
+                    className="cursor-pointer px-4 py-3 transition-colors hover:bg-surface-container"
                     onClick={() => toggleGroup(group.date)}
                   >
                     <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2">
                       <div className="col-span-1 flex justify-center">
-                        <span className={`material-symbols-outlined text-on-surface-variant transition-transform ${isExpanded ? "rotate-180" : "rotate-0"}`}>
-                          expand_more
-                        </span>
+                        <input
+                          checked={group.checkedCount === group.shiftCount && group.shiftCount > 0}
+                          className="rounded border-outline-variant text-primary focus:ring-primary"
+                          type="checkbox"
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            event.stopPropagation();
+                            handleCheckAllInGroup(group.date, event.target.checked);
+                          }}
+                        />
                       </div>
                       <div className="col-span-4 text-sm font-black text-primary">
                         {group.dayOfWeek} - {formatDate(group.date)}
@@ -1104,10 +1148,25 @@ function App(): JSX.Element {
                       <div className="col-span-3 flex justify-center">
                         <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{group.shiftCount} ca</span>
                       </div>
-                      <div className="col-span-3 text-right text-sm font-bold text-on-surface">{formatHoursAsHourMinute(group.totalHours)}</div>
+                      <div className="col-span-2 text-right text-sm font-bold text-on-surface">{formatHoursAsHourMinute(group.totalHours)}</div>
+                      <div className="col-span-1 flex justify-center">
+                        <button
+                          aria-expanded={isExpanded}
+                          className="inline-flex h-6 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleGroup(group.date);
+                          }}
+                        >
+                          <span className={`material-symbols-outlined transition-transform ${isExpanded ? "rotate-180" : "rotate-0"}`}>
+                            expand_more
+                          </span>
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-1 pl-9 text-[11px] font-medium text-on-surface-variant">{group.checkedCount}/{group.shiftCount} dòng đã chọn</div>
-                  </button>
+                  </div>
 
                   {isExpanded ? (
                     <div className="border-t border-outline-variant/15">
@@ -1415,6 +1474,49 @@ function App(): JSX.Element {
         </div>
       ) : null}
 
+      {pendingDeleteSettingId ? (
+        <div
+          className="fixed inset-0 z-[76] flex items-end justify-center bg-on-surface/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeDeleteSettingConfirm();
+            }
+          }}
+        >
+          <div className="w-full max-w-sm rounded-t-[2rem] border-t border-white/20 bg-surface p-6 shadow-2xl sm:rounded-3xl">
+            <div className="mx-auto mb-6 h-1.5 w-12 rounded-full bg-surface-variant sm:hidden"></div>
+            <h3 className="mb-2 text-lg font-bold text-on-surface">Xác nhận xóa</h3>
+            <p className="mb-3 text-sm text-on-surface-variant">Bạn có chắc muốn xóa giờ mặc định này không?</p>
+            {pendingDeleteSetting ? (
+              <div className="mb-6 space-y-1 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm">
+                <p>
+                  <span className="font-semibold text-on-surface-variant">Thứ:</span> {pendingDeleteSetting.dayOfWeek}
+                </p>
+                <p>
+                  <span className="font-semibold text-on-surface-variant">Giờ làm:</span> {pendingDeleteSetting.slot}
+                </p>
+              </div>
+            ) : null}
+            <div className="flex gap-3">
+              <button
+                className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
+                type="button"
+                onClick={closeDeleteSettingConfirm}
+              >
+                Hủy
+              </button>
+              <button
+                className="flex-1 rounded-2xl border border-[#efc6c6] bg-[#fce8e8] py-3 font-semibold text-[#a63737] transition-all hover:bg-[#f9dede] active:scale-95"
+                type="button"
+                onClick={confirmDeleteDefaultSetting}
+              >
+                Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isSettingsModalOpen ? (
         <div
           className="fixed inset-0 z-[75] flex items-end justify-center bg-on-surface/45 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -1480,13 +1582,23 @@ function App(): JSX.Element {
                               {group.settings.map((setting) => (
                                 <div className="flex items-center justify-between rounded-lg bg-white/70 px-2 py-2" key={setting.id}>
                                   <p className="text-xs text-on-surface-variant">{setting.slot}</p>
-                                  <button
-                                    className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
-                                    type="button"
-                                    onClick={() => openEditSettingForm(setting.id)}
-                                  >
-                                    <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
-                                  </button>
+                                  <div className="flex gap-1">
+                                    <button
+                                      className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
+                                      type="button"
+                                      onClick={() => openEditSettingForm(setting.id)}
+                                    >
+                                      <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
+                                    </button>
+                                    <button
+                                      aria-label="Xóa giờ mặc định"
+                                      className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
+                                      type="button"
+                                      onClick={() => handleDeleteDefaultSetting(setting.id)}
+                                    >
+                                      <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
