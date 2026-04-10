@@ -6,7 +6,7 @@ const EXPORT_SHEET_WEBHOOK_URL = String(import.meta.env.VITE_EXPORT_SHEET_WEBHOO
 
 export function buildExportSheetRowsForMonth(rows: WorkRow[], year: number, month: number): ExportSheetDailyRow[] {
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}-`;
-  const monthRows = rows.filter((row) => row.date.startsWith(monthPrefix));
+  const monthRows = rows.filter((row) => row.checked && row.date.startsWith(monthPrefix));
   const groupByDate = new Map<string, WorkRow[]>();
 
   monthRows.forEach((row) => {

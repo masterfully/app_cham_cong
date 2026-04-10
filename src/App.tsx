@@ -204,8 +204,8 @@ function App(): JSX.Element {
     }
 
     const monthPrefix = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-`;
-    const monthRows = rows.filter((row) => row.date.startsWith(monthPrefix));
-    const dailyRows = buildExportSheetRowsForMonth(rows, parsed.year, parsed.month);
+  const monthRows = rows.filter((row) => row.checked && row.date.startsWith(monthPrefix));
+  const dailyRows = buildExportSheetRowsForMonth(rows, parsed.year, parsed.month);
     const totalHours = monthRows.reduce((sum, row) => sum + Number(row.hours), 0);
 
     return {
@@ -432,7 +432,7 @@ function App(): JSX.Element {
     }
 
     if (pendingExportSummary.dailyRows.length === 0) {
-      showToast(`Không có dữ liệu cho ${formatMonthYearLabel(pendingExportMonthValue ?? "")}.`, "error");
+      showToast(`Không có dòng đã chọn cho ${formatMonthYearLabel(pendingExportMonthValue ?? "")}.`, "error");
       return;
     }
 
