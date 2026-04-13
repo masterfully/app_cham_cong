@@ -1070,13 +1070,13 @@ function App(): JSX.Element {
               <span className="align-middle">Thêm dòng mới</span>
             </button>
             <button
-              className="flex-1 rounded-xl border border-[#efc6c6] bg-[#fce8e8] py-3.5 font-semibold tracking-tight text-[#a63737] shadow-sm transition-all hover:bg-[#f9dede] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-14 w-14 items-center justify-center rounded-lg border border-[#efc6c6] bg-[#fce8e8] px-3 text-[#a63737] shadow-sm transition-all hover:bg-[#f9dede] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               disabled={selectedRows.length === 0}
               onClick={openDeleteCheckedRowsConfirm}
+              aria-label="Xóa đã chọn"
             >
-              <span className="material-symbols-outlined mr-1 align-middle">delete</span>
-              <span className="align-middle">Xóa đã chọn</span>
+              <span className="material-symbols-outlined">delete</span>
             </button>
           </div>
         </section>
