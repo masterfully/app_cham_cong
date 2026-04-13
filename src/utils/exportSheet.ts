@@ -46,7 +46,8 @@ export async function createGoogleSheetExport(params: {
   year: number;
   month: number;
   fileName: string;
-  rows: ExportSheetDailyRow[];
+  mainRows: ExportSheetDailyRow[];
+  goldRows: ExportSheetDailyRow[];
 }): Promise<string> {
   if (!EXPORT_SHEET_WEBHOOK_URL) {
     throw new Error("Chưa cấu hình VITE_EXPORT_SHEET_WEBHOOK_URL để tạo Google Sheet.");
@@ -57,7 +58,19 @@ export async function createGoogleSheetExport(params: {
     month: params.month,
     year: params.year,
     columns: ["STT", "Thứ", "Ngày", "Ca", "Tổng số giờ"],
-    rows: params.rows,
+    rows: params.mainRows,
+    sheetTabs: [
+      {
+        title: "Bang cham cong",
+        columns: ["STT", "Thứ", "Ngày", "Ca", "Tổng số giờ"],
+        rows: params.mainRows
+      },
+      {
+        title: "Bang gio day - Gold",
+        columns: ["STT", "Thứ", "Ngày", "Ca", "Tổng số giờ"],
+        rows: params.goldRows
+      }
+    ],
     permissions: {
       anyoneCanView: true,
       ownerCanEditOnly: true
@@ -78,12 +91,16 @@ export async function createGoogleSheetExport(params: {
   }
 
   const responseText = await response.text();
-  let data: { publicUrl?: string; url?: string } = {};
+  let data: { ok?: boolean; message?: string; publicUrl?: string; url?: string } = {};
 
   try {
-    data = JSON.parse(responseText) as { publicUrl?: string; url?: string };
+    data = JSON.parse(responseText) as { ok?: boolean; message?: string; publicUrl?: string; url?: string };
   } catch {
     data = {};
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.message || "Dịch vụ xuất file trả về lỗi.");
   }
 
   const publicUrl = typeof data.publicUrl === "string" ? data.publicUrl : typeof data.url === "string" ? data.url : "";

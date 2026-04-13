@@ -1,7 +1,15 @@
 type ExportSummary = {
-  totalDays: number;
-  totalShifts: number;
-  totalHoursLabel: string;
+  main: {
+    totalDays: number;
+    totalShifts: number;
+    totalHoursLabel: string;
+  };
+  gold: {
+    totalDays: number;
+    totalShifts: number;
+    totalHoursLabel: string;
+  };
+  overallHoursLabel: string;
 };
 
 type ExportConfirmModalProps = {
@@ -34,13 +42,13 @@ function ExportConfirmModal({ isOpen, isExporting, monthLabel, summary, onCancel
         {summary ? (
           <div className="mb-6 space-y-1 rounded-xl border border-outline-variant/50 bg-surface-container-low px-3 py-3 text-sm">
             <p>
-              <span className="font-semibold text-on-surface-variant">Số ngày:</span> {summary.totalDays}
+              <span className="font-semibold text-on-surface-variant">Bảng chấm công:</span> {summary.main.totalDays} ngày, {summary.main.totalShifts} ca, {summary.main.totalHoursLabel}
             </p>
             <p>
-              <span className="font-semibold text-on-surface-variant">Số ca:</span> {summary.totalShifts}
+              <span className="font-semibold text-on-surface-variant">Bảng giờ dạy (Gold):</span> {summary.gold.totalDays} ngày, {summary.gold.totalShifts} ca, {summary.gold.totalHoursLabel}
             </p>
             <p>
-              <span className="font-semibold text-on-surface-variant">Tổng giờ:</span> {summary.totalHoursLabel}
+              <span className="font-semibold text-on-surface-variant">Tổng giờ (2 bảng):</span> {summary.overallHoursLabel}
             </p>
           </div>
         ) : null}

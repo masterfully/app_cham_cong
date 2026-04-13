@@ -1,18 +1,18 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { DAY_NAME_ALIASES, DAY_NAMES, DEFAULT_SLOT_PARTS, FILTERS } from "./constants";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { DAY_NAME_ALIASES, DAY_NAMES, DEFAULT_SLOT_PARTS } from "./constants";
 import {
-  formatDate,
   formatDateWithYear,
   formatMonthYearLabel,
   getCurrentYearMonth,
-  isInFilter,
   parseYearMonth,
   toISODate
 } from "./utils/date";
 import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
-import { areDateSetsEqual, createId, getDayNameFromDate, loadDayDefaultSettings, loadRows, matchesSearch, normalizeRow, persistDayDefaultSettings, persistRows } from "./utils/storage";
-import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, parseSlotRangeInMinutes, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
-import { DayDefaultSetting, DayDefaultSettingGroup, FilterType, WorkRow, WorkRowGroup } from "./types";
+import { createId, getDayNameFromDate, loadDayDefaultSettings, loadRows, persistDayDefaultSettings, persistRows } from "./utils/storage";
+import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
+import { getSettingsForDay, getSelectedDefaultSettings, getTotalHoursForSettings, getRowConflict } from "./utils/appHelpers";
+import { createCustomRow } from "./utils/rowFactory";
+import { DayDefaultSetting, DayDefaultSettingGroup, WorkRow } from "./types";
 import DeleteRowConfirmModal from "./components/modals/DeleteRowConfirmModal";
 import DeleteCheckedRowsConfirmModal from "./components/modals/DeleteCheckedRowsConfirmModal";
 import DeleteDayConfirmModal from "./components/modals/DeleteDayConfirmModal";
@@ -22,164 +22,119 @@ import ExportConfirmModal from "./components/modals/ExportConfirmModal";
 import ExportMonthModal from "./components/modals/ExportMonthModal";
 import ExportResultModal from "./components/modals/ExportResultModal";
 import WorkRowModal from "./components/modals/WorkRowModal";
-
-function renderSlotDisplay(slot: string): JSX.Element {
-  const splitIndex = slot.indexOf("-");
-  if (splitIndex < 0) {
-    return <span className="block w-fit mx-auto text-left">{slot}</span>;
-  }
-
-  const start = slot.slice(0, splitIndex).trim();
-  const end = slot.slice(splitIndex + 1).trim();
-  if (!start || !end) {
-    return <span className="block w-fit mx-auto text-left">{slot}</span>;
-  }
-
-  return (
-    <div className="mx-auto flex w-fit flex-col items-start leading-tight text-left">
-      <span>{`${start} -`}</span>
-      <span>{end}</span>
-    </div>
-  );
-}
-
-function getSettingsForDay(dayDefaultSettings: DayDefaultSetting[], dayOfWeek: string): DayDefaultSetting[] {
-  return sortSettingsBySlot(dayDefaultSettings.filter((setting) => setting.dayOfWeek === dayOfWeek));
-}
-
-function getSelectedDefaultSettings(
-  dayDefaultSettingsForFormDay: DayDefaultSetting[],
-  selectedDefaultSettingIndices: Set<number>
-): DayDefaultSetting[] {
-  return dayDefaultSettingsForFormDay.filter((_, index) => selectedDefaultSettingIndices.has(index));
-}
-
-function getTotalHoursForSettings(settings: DayDefaultSetting[]): number {
-  return settings.reduce((totalHours, setting) => {
-    const parts = parseSlotParts(setting.slot);
-    const calculation = calculateSlotAndHours(parts.startHour, parts.startMinute, parts.endHour, parts.endMinute);
-    return calculation.isValid ? totalHours + calculation.hours : totalHours;
-  }, 0);
-}
-
-function getRowConflict(rows: WorkRow[], candidateRow: WorkRow, ignoreRowId?: string): "duplicate" | "overlap" | null {
-  const candidateSlotRange = parseSlotRangeInMinutes(candidateRow.slot);
-  if (!candidateSlotRange) {
-    return null;
-  }
-
-  for (const row of rows) {
-    if (ignoreRowId && row.id === ignoreRowId) {
-      continue;
-    }
-
-    if (row.date !== candidateRow.date) {
-      continue;
-    }
-
-    if (row.slot === candidateRow.slot) {
-      return "duplicate";
-    }
-
-    const existingSlotRange = parseSlotRangeInMinutes(row.slot);
-    if (!existingSlotRange) {
-      continue;
-    }
-
-    if (candidateSlotRange.start < existingSlotRange.end && existingSlotRange.start < candidateSlotRange.end) {
-      return "overlap";
-    }
-  }
-
-  return null;
-}
-
-function createRowFromCalculation(params: {
-  id: string;
-  dayOfWeek: string;
-  date: string;
-  slotValue: string;
-  hours: number;
-}): WorkRow {
-  return normalizeRow({
-    id: params.id,
-    dayOfWeek: params.dayOfWeek.trim(),
-    date: params.date,
-    slot: params.slotValue,
-    hours: params.hours,
-    checked: false
-  });
-}
-
-function createCustomRow(params: {
-  id: string;
-  dayOfWeek: string;
-  date: string;
-  startHour: string;
-  startMinute: string;
-  endHour: string;
-  endMinute: string;
-}): { row: WorkRow | null; errorMessage: string | null } {
-  const slotCalculation = calculateSlotAndHours(params.startHour, params.startMinute, params.endHour, params.endMinute);
-  if (!slotCalculation.isValid) {
-    return {
-      row: null,
-      errorMessage: slotCalculation.errorMessage || "Giờ làm không hợp lệ."
-    };
-  }
-
-  return {
-    row: createRowFromCalculation({
-      id: params.id,
-      dayOfWeek: params.dayOfWeek,
-      date: params.date,
-      slotValue: slotCalculation.slotValue,
-      hours: slotCalculation.hours
-    }),
-    errorMessage: null
-  };
-}
+import PageHeader from "./components/ui/PageHeader";
+import ToastPanel from "./components/ui/ToastPanel";
+import BottomSummaryBar from "./components/ui/BottomSummaryBar";
+import PageContentSection from "./components/PageContentSection";
+import { usePageContent } from "./hooks/usePageContent";
+import { useRowSelection } from "./hooks/useRowSelection";
+import { useToast } from "./hooks/useToast";
+import { useExportWorkflow } from "./hooks/useExportWorkflow";
+import { useWorkRowForm } from "./hooks/useWorkRowForm";
+import { useSettingsForm } from "./hooks/useSettingsForm";
+import { loadGoldDayDefaultSettings, loadGoldRows, persistGoldDayDefaultSettings, persistGoldRows } from "./utils/goldStorage";
 
 function App(): JSX.Element {
+  const [currentPage, setCurrentPage] = useState<"main" | "gold">("main");
+  
+  // Main page state
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
   const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const mainPageContent = usePageContent({
+    rows,
+    dayDefaultSettings,
+    activeFilter: "all",
+    searchQuery: ""
+  });
+  
+  // Gold page state
+  const [goldRows, setGoldRows] = useState<WorkRow[]>(() => loadGoldRows());
+  const [goldDayDefaultSettings, setGoldDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadGoldDayDefaultSettings());
+  
+  const goldPageContent = usePageContent({
+    rows: goldRows,
+    dayDefaultSettings: goldDayDefaultSettings,
+    activeFilter: "all",
+    searchQuery: ""
+  });
+
+  const { toastState, showToast } = useToast();
+  const {
+    exportMonthValue,
+    pendingExportMonthValue,
+    exportPublicUrl,
+    isExporting,
+    setExportMonthValue,
+    setPendingExportMonthValue,
+    setExportPublicUrl,
+    setIsExporting
+  } = useExportWorkflow();
+
+  const {
+    dayOfWeek: formDayOfWeek,
+    date: formDate,
+    startHour: formStartHour,
+    startMinute: formStartMinute,
+    endHour: formEndHour,
+    endMinute: formEndMinute,
+    mode: formMode,
+    editingRowId,
+    selectedDefaultSettingIndices,
+    setDayOfWeek: setFormDayOfWeek,
+    setDate: setFormDate,
+    setStartHour: setFormStartHour,
+    setStartMinute: setFormStartMinute,
+    setEndHour: setFormEndHour,
+    setEndMinute: setFormEndMinute,
+    setMode: setFormMode,
+    setSelectedDefaultSettingIndices,
+    toggleDefaultSettingIndex,
+    toggleAllDefaultSettings,
+    resetForm: resetWorkRowForm,
+    setFormFromRow
+  } = useWorkRowForm();
+
+  const {
+    dayOfWeek: settingFormDayOfWeek,
+    startHour: settingFormStartHour,
+    startMinute: settingFormStartMinute,
+    endHour: settingFormEndHour,
+    endMinute: settingFormEndMinute,
+    editingSettingId,
+    isFormOpen: isSettingsFormOpen,
+    expandedSettingDays,
+    setDayOfWeek: setSettingFormDayOfWeek,
+    setStartHour: setSettingFormStartHour,
+    setStartMinute: setSettingFormStartMinute,
+    setEndHour: setSettingFormEndHour,
+    setEndMinute: setSettingFormEndMinute,
+    setExpandedSettingDays,
+    toggleSettingDay,
+    openAddSettingForm: openSettingsFormForAdd,
+    openEditSettingForm: openSettingsFormForEdit,
+    closeSettingsForm: closeSettingsFormHook
+  } = useSettingsForm("T2");
+  
+  // Page-aware state accessors
+  const currentRows = currentPage === "main" ? rows : goldRows;
+  const setCurrentRows = currentPage === "main" ? setRows : setGoldRows;
+  const currentDayDefaultSettings = currentPage === "main" ? dayDefaultSettings : goldDayDefaultSettings;
+  const setCurrentDayDefaultSettings = currentPage === "main" ? setDayDefaultSettings : setGoldDayDefaultSettings;
+  
+  const currentPageContent = currentPage === "main" ? mainPageContent : goldPageContent;
+  const mainSelection = useRowSelection(mainPageContent.visibleRows);
+  const goldSelection = useRowSelection(goldPageContent.visibleRows);
+  const currentSelection = currentPage === "main" ? mainSelection : goldSelection;
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isSettingsFormOpen, setIsSettingsFormOpen] = useState(false);
-  const [editingSettingId, setEditingSettingId] = useState<string | null>(null);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
   const [pendingDeleteDayDate, setPendingDeleteDayDate] = useState<string | null>(null);
   const [isDeleteCheckedRowsModalOpen, setIsDeleteCheckedRowsModalOpen] = useState(false);
-  const [toastState, setToastState] = useState<{ message: string; tone: "success" | "error" } | null>(null);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
-  const [expandedSettingDays, setExpandedSettingDays] = useState<Set<string>>(() => new Set());
-  const [selectedDefaultSettingIndices, setSelectedDefaultSettingIndices] = useState<Set<number>>(() => new Set());
-  const [formMode, setFormMode] = useState<"default" | "custom">("default");
   const [pendingDeleteSettingId, setPendingDeleteSettingId] = useState<string | null>(null);
   const [isExportMonthModalOpen, setIsExportMonthModalOpen] = useState(false);
   const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
   const [isExportResultModalOpen, setIsExportResultModalOpen] = useState(false);
-  const [exportMonthValue, setExportMonthValue] = useState(getCurrentYearMonth());
-  const [pendingExportMonthValue, setPendingExportMonthValue] = useState<string | null>(null);
-  const [exportPublicUrl, setExportPublicUrl] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
-  const hasInitializedExpandedDates = useRef(false);
-
-  const [formDayOfWeek, setFormDayOfWeek] = useState("T2");
-  const [formDate, setFormDate] = useState(toISODate(new Date()));
-  const [formStartHour, setFormStartHour] = useState(DEFAULT_SLOT_PARTS.startHour);
-  const [formStartMinute, setFormStartMinute] = useState(DEFAULT_SLOT_PARTS.startMinute);
-  const [formEndHour, setFormEndHour] = useState(DEFAULT_SLOT_PARTS.endHour);
-  const [formEndMinute, setFormEndMinute] = useState(DEFAULT_SLOT_PARTS.endMinute);
-
-  const [settingFormDayOfWeek, setSettingFormDayOfWeek] = useState("T2");
-  const [settingFormStartHour, setSettingFormStartHour] = useState(DEFAULT_SLOT_PARTS.startHour);
-  const [settingFormStartMinute, setSettingFormStartMinute] = useState(DEFAULT_SLOT_PARTS.startMinute);
-  const [settingFormEndHour, setSettingFormEndHour] = useState(DEFAULT_SLOT_PARTS.endHour);
-  const [settingFormEndMinute, setSettingFormEndMinute] = useState(DEFAULT_SLOT_PARTS.endMinute);
 
   useEffect(() => {
     persistRows(rows);
@@ -188,6 +143,14 @@ function App(): JSX.Element {
   useEffect(() => {
     persistDayDefaultSettings(dayDefaultSettings);
   }, [dayDefaultSettings]);
+
+  useEffect(() => {
+    persistGoldRows(goldRows);
+  }, [goldRows]);
+
+  useEffect(() => {
+    persistGoldDayDefaultSettings(goldDayDefaultSettings);
+  }, [goldDayDefaultSettings]);
 
   useEffect(() => {
     if (!isModalOpen) {
@@ -206,125 +169,39 @@ function App(): JSX.Element {
     };
   }, [isModalOpen]);
 
-  useEffect(() => {
-    if (!toastState) {
-      return;
-    }
-
-    const timerId = window.setTimeout(() => {
-      setToastState(null);
-    }, 3200);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [toastState]);
-
   const visibleRows = useMemo(() => {
-    return rows.filter((row) => isInFilter(row.date, activeFilter) && matchesSearch(row, searchQuery));
-  }, [rows, activeFilter, searchQuery]);
+    return currentPageContent.visibleRows;
+  }, [currentPageContent.visibleRows]);
 
-  const groupedVisibleRows = useMemo<WorkRowGroup[]>(() => {
-    const groupMap = new Map<string, WorkRow[]>();
-
-    for (const row of visibleRows) {
-      const rowsForDate = groupMap.get(row.date);
-      if (rowsForDate) {
-        rowsForDate.push(row);
-      } else {
-        groupMap.set(row.date, [row]);
-      }
-    }
-
-    return Array.from(groupMap.entries())
-      .sort((left, right) => right[0].localeCompare(left[0]))
-      .map(([date, rowsInDate]) => {
-        const totalHours = rowsInDate.reduce((sum, row) => sum + Number(row.hours), 0);
-        const checkedCount = rowsInDate.reduce((sum, row) => sum + (row.checked ? 1 : 0), 0);
-
-        return {
-          date,
-          dayOfWeek: rowsInDate[0]?.dayOfWeek ?? getDayNameFromDate(date),
-          rows: rowsInDate,
-          shiftCount: rowsInDate.length,
-          checkedCount,
-          totalHours
-        };
-      });
-  }, [visibleRows]);
-
-  useEffect(() => {
-    const todayDate = toISODate(new Date());
-
-    setExpandedDates((previousExpandedDates) => {
-      const visibleDateSet = new Set(groupedVisibleRows.map((group) => group.date));
-      const nextExpandedDates = new Set<string>();
-
-      if (!hasInitializedExpandedDates.current && visibleDateSet.has(todayDate)) {
-        nextExpandedDates.add(todayDate);
-        hasInitializedExpandedDates.current = true;
-      }
-
-      previousExpandedDates.forEach((date) => {
-        if (visibleDateSet.has(date)) {
-          nextExpandedDates.add(date);
-        }
-      });
-
-      return areDateSetsEqual(previousExpandedDates, nextExpandedDates) ? previousExpandedDates : nextExpandedDates;
-    });
-  }, [groupedVisibleRows]);
+  const groupedVisibleRows = useMemo(() => {
+    return currentPageContent.groupedVisibleRows;
+  }, [currentPageContent.groupedVisibleRows]);
 
   const selectedRows = useMemo(() => {
-    return visibleRows.filter((row) => row.checked);
-  }, [visibleRows]);
+    return currentSelection.selectedRows;
+  }, [currentSelection.selectedRows]);
 
   const checkedRowsSummary = useMemo(() => {
-    const rowMap = new Map<string, WorkRow[]>();
-
-    for (const row of selectedRows) {
-      const existingRows = rowMap.get(row.date);
-      if (existingRows) {
-        existingRows.push(row);
-      } else {
-        rowMap.set(row.date, [row]);
-      }
-    }
-
-    const days = Array.from(rowMap.entries())
-      .sort((left, right) => right[0].localeCompare(left[0]))
-      .map(([date, dayRows]) => ({
-        date,
-        dayOfWeek: dayRows[0]?.dayOfWeek ?? getDayNameFromDate(date),
-        shiftCount: dayRows.length,
-        totalHoursLabel: formatHoursAsHourMinute(dayRows.reduce((sum, row) => sum + Number(row.hours), 0))
-      }));
-
-    return {
-      totalDays: days.length,
-      totalShifts: selectedRows.length,
-      totalHoursLabel: formatHoursAsHourMinute(selectedRows.reduce((sum, row) => sum + Number(row.hours), 0)),
-      days
-    };
-  }, [selectedRows]);
+    return currentSelection.checkedRowsSummary;
+  }, [currentSelection.checkedRowsSummary]);
 
   const totalSelectedHours = useMemo(() => {
-    return selectedRows.reduce((sum, row) => sum + Number(row.hours), 0);
-  }, [selectedRows]);
+    return currentSelection.totalSelectedHours;
+  }, [currentSelection.totalSelectedHours]);
 
   const pendingDeleteRow = useMemo(() => {
     if (!pendingDeleteRowId) {
       return null;
     }
-    return rows.find((row) => row.id === pendingDeleteRowId) ?? null;
-  }, [rows, pendingDeleteRowId]);
+    return currentRows.find((row) => row.id === pendingDeleteRowId) ?? null;
+  }, [currentRows, pendingDeleteRowId]);
 
   const pendingDeleteDaySummary = useMemo(() => {
     if (!pendingDeleteDayDate) {
       return null;
     }
 
-    const dayRows = rows.filter((row) => row.date === pendingDeleteDayDate);
+    const dayRows = currentRows.filter((row) => row.date === pendingDeleteDayDate);
     if (dayRows.length === 0) {
       return null;
     }
@@ -335,14 +212,14 @@ function App(): JSX.Element {
       shiftCount: dayRows.length,
       totalHoursLabel: formatHoursAsHourMinute(dayRows.reduce((sum, row) => sum + Number(row.hours), 0))
     };
-  }, [pendingDeleteDayDate, rows]);
+  }, [pendingDeleteDayDate, currentRows]);
 
   const pendingDeleteSetting = useMemo(() => {
     if (!pendingDeleteSettingId) {
       return null;
     }
-    return dayDefaultSettings.find((setting) => setting.id === pendingDeleteSettingId) ?? null;
-  }, [dayDefaultSettings, pendingDeleteSettingId]);
+    return currentDayDefaultSettings.find((setting) => setting.id === pendingDeleteSettingId) ?? null;
+  }, [currentDayDefaultSettings, pendingDeleteSettingId]);
 
   const pendingExportSummary = useMemo(() => {
     if (!pendingExportMonthValue) {
@@ -355,19 +232,30 @@ function App(): JSX.Element {
     }
 
     const monthPrefix = `${parsed.year}-${String(parsed.month).padStart(2, "0")}-`;
-  const monthRows = rows.filter((row) => row.checked && row.date.startsWith(monthPrefix));
-  const dailyRows = buildExportSheetRowsForMonth(rows, parsed.year, parsed.month);
-    const totalHours = monthRows.reduce((sum, row) => sum + Number(row.hours), 0);
+    const mainMonthRows = rows.filter((row) => row.checked && row.date.startsWith(monthPrefix));
+    const goldMonthRows = goldRows.filter((row) => row.checked && row.date.startsWith(monthPrefix));
+    const mainDailyRows = buildExportSheetRowsForMonth(rows, parsed.year, parsed.month);
+    const goldDailyRows = buildExportSheetRowsForMonth(goldRows, parsed.year, parsed.month);
+    const mainTotalHours = mainMonthRows.reduce((sum, row) => sum + Number(row.hours), 0);
+    const goldTotalHours = goldMonthRows.reduce((sum, row) => sum + Number(row.hours), 0);
 
     return {
       year: parsed.year,
       month: parsed.month,
-      totalShifts: monthRows.length,
-      totalDays: dailyRows.length,
-      totalHours,
-      dailyRows
+      main: {
+        totalShifts: mainMonthRows.length,
+        totalDays: mainDailyRows.length,
+        totalHours: mainTotalHours,
+        dailyRows: mainDailyRows
+      },
+      gold: {
+        totalShifts: goldMonthRows.length,
+        totalDays: goldDailyRows.length,
+        totalHours: goldTotalHours,
+        dailyRows: goldDailyRows
+      }
     };
-  }, [pendingExportMonthValue, rows]);
+  }, [pendingExportMonthValue, rows, goldRows]);
 
   const formSlotCalculation = useMemo(
     () => calculateSlotAndHours(formStartHour, formStartMinute, formEndHour, formEndMinute),
@@ -380,8 +268,8 @@ function App(): JSX.Element {
   );
 
   const dayDefaultSettingsForFormDay = useMemo(
-    () => getSettingsForDay(dayDefaultSettings, formDayOfWeek),
-    [dayDefaultSettings, formDayOfWeek]
+    () => getSettingsForDay(currentDayDefaultSettings, formDayOfWeek),
+    [currentDayDefaultSettings, formDayOfWeek]
   );
 
   const selectedDefaultSettingsForFormDay = useMemo(
@@ -405,7 +293,7 @@ function App(): JSX.Element {
     const dayIndex = new Map(DAY_NAMES.map((dayName, index) => [dayName, index]));
 
     return DAY_NAMES.map((dayName) => {
-      const settings = sortSettingsBySlot(dayDefaultSettings.filter((setting) => setting.dayOfWeek === dayName));
+      const settings = sortSettingsBySlot(currentDayDefaultSettings.filter((setting) => setting.dayOfWeek === dayName));
       return {
         dayOfWeek: dayName,
         settings
@@ -417,99 +305,56 @@ function App(): JSX.Element {
         const rightIndex = dayIndex.get(right.dayOfWeek) ?? 999;
         return leftIndex - rightIndex;
       });
-  }, [dayDefaultSettings]);
+  }, [currentDayDefaultSettings]);
 
-  useEffect(() => {
-    if (!isModalOpen) {
-      return;
-    }
-
-    // When modal opens, clear selections so the user can pick shifts explicitly.
-    setSelectedDefaultSettingIndices(new Set());
-  }, [isModalOpen]);
-
-  function toggleDefaultSettingIndex(index: number): void {
-    setSelectedDefaultSettingIndices((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
-    });
-  }
-
-  function toggleAllDefaultSettings(): void {
-    if (selectedDefaultSettingIndices.size === dayDefaultSettingsForFormDay.length) {
-      setSelectedDefaultSettingIndices(new Set());
-    } else {
-      const allIndices = new Set<number>();
-      for (let i = 0; i < dayDefaultSettingsForFormDay.length; i++) {
-        allIndices.add(i);
-      }
-      setSelectedDefaultSettingIndices(allIndices);
-    }
+  function toggleGroup(date: string): void {
+    currentPageContent.toggleGroup(date);
   }
 
   function openModal(): void {
     const defaultDate = toISODate(new Date());
     const defaultDayOfWeek = getDayNameFromDate(defaultDate);
-    setEditingRowId(null);
-    setFormDate(defaultDate);
-    setFormDayOfWeek(defaultDayOfWeek);
-    const defaultSettingsForDay = getSettingsForDay(dayDefaultSettings, defaultDayOfWeek);
+    resetWorkRowForm();
+    const defaultSettingsForDay = getSettingsForDay(currentDayDefaultSettings, defaultDayOfWeek);
     const parts = defaultSettingsForDay.length > 0 ? parseSlotParts(defaultSettingsForDay[0].slot) : DEFAULT_SLOT_PARTS;
     setFormStartHour(parts.startHour);
     setFormStartMinute(parts.startMinute);
     setFormEndHour(parts.endHour);
     setFormEndMinute(parts.endMinute);
-    setSelectedDefaultSettingIndices(new Set());
     setFormMode(defaultSettingsForDay.length > 0 ? "default" : "custom");
     setIsModalOpen(true);
   }
 
   function closeModal(): void {
-    setEditingRowId(null);
-    setFormMode("default");
+    resetWorkRowForm();
     setIsModalOpen(false);
   }
 
   function handleEditRow(rowId: string): void {
-    const rowToEdit = rows.find((row) => row.id === rowId);
+    const rowToEdit = currentRows.find((row) => row.id === rowId);
     if (!rowToEdit) {
       return;
     }
 
-    setEditingRowId(rowId);
-    setFormDayOfWeek(rowToEdit.dayOfWeek);
-    setFormDate(rowToEdit.date);
-    const settingsForDay = getSettingsForDay(dayDefaultSettings, rowToEdit.dayOfWeek);
+    const settingsForDay = getSettingsForDay(currentDayDefaultSettings, rowToEdit.dayOfWeek);
     const matchedSettingIndex = settingsForDay.findIndex((setting) => setting.slot === rowToEdit.slot);
-    const slotParts = parseSlotParts(rowToEdit.slot);
-    setFormStartHour(slotParts.startHour);
-    setFormStartMinute(slotParts.startMinute);
-    setFormEndHour(slotParts.endHour);
-    setFormEndMinute(slotParts.endMinute);
-    // For editing, pre-select the matching setting
-    setSelectedDefaultSettingIndices(matchedSettingIndex >= 0 ? new Set([matchedSettingIndex]) : new Set());
-    setFormMode("custom");
+    setFormFromRow(rowId, rowToEdit.dayOfWeek, rowToEdit.date, rowToEdit.slot, matchedSettingIndex);
     setIsModalOpen(true);
   }
 
   function handleDateChange(value: string): void {
-    setFormDate(value);
     if (value) {
       const dayName = getDayNameFromDate(value);
+      setFormDate(value);
       setFormDayOfWeek(dayName);
       setSelectedDefaultSettingIndices(new Set());
-      const defaultsForDay = getSettingsForDay(dayDefaultSettings, dayName);
+      const defaultsForDay = getSettingsForDay(currentDayDefaultSettings, dayName);
       setFormMode(defaultsForDay.length > 0 && !editingRowId ? "default" : "custom");
     }
   }
 
   function handleToggleRow(rowId: string, checked: boolean): void {
-    setRows((previousRows) =>
+    setCurrentRows((previousRows) =>
       previousRows.map((row) => {
         if (row.id !== rowId) {
           return row;
@@ -520,7 +365,7 @@ function App(): JSX.Element {
   }
 
   function handleCheckAllInGroup(date: string, checked: boolean): void {
-    setRows((previousRows) =>
+    setCurrentRows((previousRows) =>
       previousRows.map((row) => {
         if (row.date !== date) {
           return row;
@@ -549,9 +394,8 @@ function App(): JSX.Element {
 
   function openSettingsModal(): void {
     setIsSettingsModalOpen(true);
-    setIsSettingsFormOpen(false);
-    setEditingSettingId(null);
     setExpandedSettingDays(new Set());
+    closeSettingsFormHook();
   }
 
   function openExportMonthModal(): void {
@@ -592,7 +436,7 @@ function App(): JSX.Element {
       return;
     }
 
-    if (pendingExportSummary.dailyRows.length === 0) {
+    if (pendingExportSummary.main.dailyRows.length === 0 && pendingExportSummary.gold.dailyRows.length === 0) {
       showToast(`Không có dòng đã chọn cho ${formatMonthYearLabel(pendingExportMonthValue ?? "")}.`, "error");
       return;
     }
@@ -605,7 +449,8 @@ function App(): JSX.Element {
         year: pendingExportSummary.year,
         month: pendingExportSummary.month,
         fileName,
-        rows: pendingExportSummary.dailyRows
+        mainRows: pendingExportSummary.main.dailyRows,
+        goldRows: pendingExportSummary.gold.dailyRows
       });
 
       setExportPublicUrl(publicUrl);
@@ -642,39 +487,7 @@ function App(): JSX.Element {
 
   function closeSettingsModal(): void {
     setIsSettingsModalOpen(false);
-    setIsSettingsFormOpen(false);
-    setEditingSettingId(null);
-  }
-
-  function openAddSettingForm(): void {
-    setEditingSettingId(null);
-    setSettingFormDayOfWeek(formDayOfWeek);
-    setSettingFormStartHour(DEFAULT_SLOT_PARTS.startHour);
-    setSettingFormStartMinute(DEFAULT_SLOT_PARTS.startMinute);
-    setSettingFormEndHour(DEFAULT_SLOT_PARTS.endHour);
-    setSettingFormEndMinute(DEFAULT_SLOT_PARTS.endMinute);
-    setIsSettingsFormOpen(true);
-  }
-
-  function openEditSettingForm(settingId: string): void {
-    const setting = dayDefaultSettings.find((item) => item.id === settingId);
-    if (!setting) {
-      return;
-    }
-
-    const parts = parseSlotParts(setting.slot);
-    setEditingSettingId(setting.id);
-    setSettingFormDayOfWeek(setting.dayOfWeek);
-    setSettingFormStartHour(parts.startHour);
-    setSettingFormStartMinute(parts.startMinute);
-    setSettingFormEndHour(parts.endHour);
-    setSettingFormEndMinute(parts.endMinute);
-    setIsSettingsFormOpen(true);
-  }
-
-  function closeSettingsForm(): void {
-    setIsSettingsFormOpen(false);
-    setEditingSettingId(null);
+    closeSettingsFormHook();
   }
 
   function handleDeleteDefaultSetting(settingId: string): void {
@@ -686,41 +499,13 @@ function App(): JSX.Element {
       return;
     }
 
-    setDayDefaultSettings((previousSettings) => previousSettings.filter((setting) => setting.id !== pendingDeleteSettingId));
+    setCurrentDayDefaultSettings((previousSettings) => previousSettings.filter((setting) => setting.id !== pendingDeleteSettingId));
     setPendingDeleteSettingId(null);
     showToast("Xóa giờ mặc định thành công", "success");
   }
 
   function closeDeleteSettingConfirm(): void {
     setPendingDeleteSettingId(null);
-  }
-
-  function showToast(message: string, tone: "success" | "error" = "success"): void {
-    setToastState({ message, tone });
-  }
-
-  function toggleGroup(date: string): void {
-    setExpandedDates((previousExpandedDates) => {
-      const nextExpandedDates = new Set(previousExpandedDates);
-      if (nextExpandedDates.has(date)) {
-        nextExpandedDates.delete(date);
-      } else {
-        nextExpandedDates.add(date);
-      }
-      return nextExpandedDates;
-    });
-  }
-
-  function toggleSettingDay(dayOfWeek: string): void {
-    setExpandedSettingDays((previousDays) => {
-      const nextDays = new Set(previousDays);
-      if (nextDays.has(dayOfWeek)) {
-        nextDays.delete(dayOfWeek);
-      } else {
-        nextDays.add(dayOfWeek);
-      }
-      return nextDays;
-    });
   }
 
   function handleSubmitDayDefaultSetting(event: FormEvent<HTMLFormElement>): void {
@@ -735,7 +520,7 @@ function App(): JSX.Element {
     const normalizedDay = DAY_NAME_ALIASES[settingFormDayOfWeek] ?? settingFormDayOfWeek;
 
     const newSlot = slotCalculation.slotValue;
-    const hasConflictSetting = dayDefaultSettings.some((setting) => {
+    const hasConflictSetting = currentDayDefaultSettings.some((setting) => {
       if (setting.id === editingSettingId || setting.dayOfWeek !== normalizedDay) {
         return false;
       }
@@ -747,7 +532,7 @@ function App(): JSX.Element {
       return;
     }
 
-    setDayDefaultSettings((previousSettings) => {
+    setCurrentDayDefaultSettings((previousSettings) => {
       if (editingSettingId) {
         return previousSettings.map((setting) => {
           if (setting.id !== editingSettingId) {
@@ -772,7 +557,7 @@ function App(): JSX.Element {
       ];
     });
 
-    closeSettingsForm();
+    closeSettingsFormHook();
     showToast(editingSettingId ? "Cập nhật giờ mặc định thành công" : "Thêm giờ mặc định thành công", "success");
   }
 
@@ -788,7 +573,7 @@ function App(): JSX.Element {
     if (!pendingDeleteRowId) {
       return;
     }
-    setRows((previousRows) => previousRows.filter((row) => row.id !== pendingDeleteRowId));
+    setCurrentRows((previousRows) => previousRows.filter((row) => row.id !== pendingDeleteRowId));
     setPendingDeleteRowId(null);
     showToast("Xóa dòng thành công", "success");
   }
@@ -798,7 +583,7 @@ function App(): JSX.Element {
       return;
     }
 
-    setRows((previousRows) => previousRows.filter((row) => row.date !== pendingDeleteDayDate));
+    setCurrentRows((previousRows) => previousRows.filter((row) => row.date !== pendingDeleteDayDate));
     setPendingDeleteDayDate(null);
     showToast("Xóa ngày chấm công thành công", "success");
   }
@@ -814,7 +599,7 @@ function App(): JSX.Element {
     }
 
     const selectedRowIds = new Set(selectedRows.map((row) => row.id));
-    setRows((previousRows) => previousRows.filter((row) => !selectedRowIds.has(row.id)));
+    setCurrentRows((previousRows) => previousRows.filter((row) => !selectedRowIds.has(row.id)));
     setIsDeleteCheckedRowsModalOpen(false);
     showToast(`Xóa ${selectedRows.length} dòng đã chọn thành công`, "success");
   }
@@ -828,6 +613,9 @@ function App(): JSX.Element {
       showToast("Vui lòng nhập đầy đủ thông tin hợp lệ.", "error");
       return;
     }
+
+    // Combine rows from both pages for cross-page duplicate validation
+    const allRowsAcrossPages = currentPage === "main" ? [...rows, ...goldRows] : [...goldRows, ...rows];
 
     if (!isEditing && formMode === "default" && dayDefaultSettingsForFormDay.length === 0) {
       setFormMode("custom");
@@ -875,18 +663,18 @@ function App(): JSX.Element {
 
       const newRow = customRowResult.row;
 
-      const conflictType = getRowConflict(rows, newRow, newRow.id);
+      const conflictType = getRowConflict(allRowsAcrossPages, newRow, newRow.id);
       if (conflictType === "duplicate") {
-        showToast("Dòng bị trùng: cùng ngày và cùng giờ làm đã tồn tại.", "error");
+        showToast("Dòng bị trùng: cùng ngày và cùng giờ làm đã tồn tại trên trang khác.", "error");
         return;
       }
 
       if (conflictType === "overlap") {
-        showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày.", "error");
+        showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày trên trang khác.", "error");
         return;
       }
 
-      setRows((previousRows) =>
+      setCurrentRows((previousRows) =>
         previousRows.map((row) => {
           if (row.id !== editingRowId) {
             return row;
@@ -929,21 +717,21 @@ function App(): JSX.Element {
 
         const newRow = customRowResult.row;
 
-        const conflictType = getRowConflict([...rows, ...newRows], newRow);
+        const conflictType = getRowConflict([...allRowsAcrossPages, ...newRows], newRow);
         if (conflictType === "duplicate") {
-          showToast(`Dòng bị trùng: cùng ngày ${formatDateWithYear(formDate)} và giờ làm ${newRow.slot} đã tồn tại.`, "error");
+          showToast(`Dòng bị trùng: cùng ngày ${formatDateWithYear(formDate)} và giờ làm ${newRow.slot} đã tồn tại trên trang khác.`, "error");
           return;
         }
 
         if (conflictType === "overlap") {
-          showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày.", "error");
+          showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày trên trang khác.", "error");
           return;
         }
 
         newRows.push(newRow);
       }
 
-      setRows((previousRows) => [...newRows, ...previousRows]);
+      setCurrentRows((previousRows) => [...newRows, ...previousRows]);
       closeModal();
       showToast(`Thêm ${newRows.length} dòng thành công`, "success");
       return;
@@ -966,296 +754,113 @@ function App(): JSX.Element {
 
     const newRow = customRowResult.row;
 
-    const conflictType = getRowConflict(rows, newRow);
+    const conflictType = getRowConflict(allRowsAcrossPages, newRow);
     if (conflictType === "duplicate") {
-      showToast("Dòng bị trùng: cùng ngày và cùng giờ làm đã tồn tại.", "error");
+      showToast("Dòng bị trùng: cùng ngày và cùng giờ làm đã tồn tại trên trang khác.", "error");
       return;
     }
 
     if (conflictType === "overlap") {
-      showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày.", "error");
+      showToast("Ca làm bị chồng giờ với ca khác trong cùng ngày trên trang khác.", "error");
       return;
     }
 
-    setRows((previousRows) => [newRow, ...previousRows]);
+    setCurrentRows((previousRows) => [newRow, ...previousRows]);
     closeModal();
     showToast("Thêm dòng thành công", "success");
   }
 
   return (
     <>
-      <header className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center justify-between bg-[#f7fafb]/80 px-4 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary">schedule</span>
-          <h1 className="text-lg font-extrabold text-primary">Quản lý giờ làm</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            aria-label="Xuất Google Sheet"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
-            type="button"
-            onClick={openExportMonthModal}
-          >
-            <span className="material-symbols-outlined">ios_share</span>
-          </button>
-          <button
-            aria-label="Mở cài đặt giờ mặc định"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/40 bg-white/70 text-on-surface-variant transition-colors hover:bg-surface-container"
-            type="button"
-            onClick={openSettingsModal}
-          >
-            <span className="material-symbols-outlined">settings</span>
-          </button>
-        </div>
-      </header>
+      {currentPage === "main" ? (
+        <>
+          <PageHeader title="Quản lý giờ làm" onExport={openExportMonthModal} onOpenSettings={openSettingsModal} />
+          <ToastPanel toastState={toastState} />
+          <PageContentSection
+            title="Bảng chấm công"
+            slotLabel="Giờ làm"
+            groupedVisibleRows={groupedVisibleRows}
+            expandedDates={currentPageContent.expandedDates}
+            visibleRowsCount={visibleRows.length}
+            activeFilter={currentPageContent.activeFilter as any}
+            searchQuery={currentPageContent.searchQuery}
+            onToggleGroup={toggleGroup}
+            onToggleRow={handleToggleRow}
+            onCheckAllInGroup={handleCheckAllInGroup}
+            onEditRow={handleEditRow}
+            onDeleteRow={openDeleteConfirm}
+            onDeleteDay={openDeleteDayConfirm}
+            onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
+            onSearchChange={currentPageContent.setSearchQuery}
+            onAddRow={openModal}
+            onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
+            selectedRowsCount={selectedRows.length}
+          />
+          <BottomSummaryBar
+            title="Tổng giờ làm đã chọn"
+            totalHoursLabel={formatHoursAsHourMinute(totalSelectedHours)}
+            selectedCount={selectedRows.length}
+            onNavigate={() => setCurrentPage("gold")}
+            navigateAriaLabel="Xem giờ dạy cho Gold"
+            navigateIcon="arrow_forward"
+          />
+        </>
+      ) : (
+        <>
+          <PageHeader
+            title="Giờ dạy - Gold"
+            showBackButton
+            backAriaLabel="Quay lại"
+            onBack={() => setCurrentPage("main")}
+            onExport={openExportMonthModal}
+            onOpenSettings={openSettingsModal}
+          />
+          <ToastPanel toastState={toastState} />
+          <PageContentSection
+            title="Bảng giờ dạy Gold"
+            slotLabel="Giờ dạy"
+            groupedVisibleRows={groupedVisibleRows}
+            expandedDates={currentPageContent.expandedDates}
+            visibleRowsCount={visibleRows.length}
+            activeFilter={currentPageContent.activeFilter as any}
+            searchQuery={currentPageContent.searchQuery}
+            onToggleGroup={toggleGroup}
+            onToggleRow={handleToggleRow}
+            onCheckAllInGroup={handleCheckAllInGroup}
+            onEditRow={handleEditRow}
+            onDeleteRow={openDeleteConfirm}
+            onDeleteDay={openDeleteDayConfirm}
+            onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
+            onSearchChange={currentPageContent.setSearchQuery}
+            onAddRow={openModal}
+            onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
+            selectedRowsCount={selectedRows.length}
+          />
+          <BottomSummaryBar
+            title="Tổng giờ dạy cho Gold đã chọn"
+            totalHoursLabel={formatHoursAsHourMinute(totalSelectedHours)}
+            selectedCount={selectedRows.length}
+            onNavigate={() => setCurrentPage("main")}
+            navigateAriaLabel="Quay lại trang chính"
+            navigateIcon="arrow_back"
+          />
+        </>
+      )}
 
-      {toastState ? (
-        <div className="fixed right-4 top-[4.5rem] z-[100] max-w-[calc(100vw-2rem)]">
-          <div
-            className={`toast-panel rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-lg ${
-              toastState.tone === "error"
-                ? "border border-[#d28b8b] bg-[#6f2d2d] text-[#fff1f1]"
-                : "border border-[#2a5560] bg-[#133e48] text-[#eaf6f8]"
-            }`}
-          >
-            {toastState.message}
-          </div>
-        </div>
-      ) : null}
-
-      <main className="mx-auto max-w-lg px-4 pb-44 pt-20">
-        <section className="mb-6 space-y-4">
-          <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <span className="material-symbols-outlined text-sm text-outline">search</span>
-            </div>
-            <input
-              autoComplete="off"
-              className="w-full rounded-xl border-none bg-surface-container-highest py-3 pl-10 pr-4 text-on-surface focus:ring-2 focus:ring-primary/20"
-              placeholder="Tìm kiếm theo thứ, ngày, giờ làm..."
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value.trim())}
-            />
-          </div>
-
-          <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-            {FILTERS.map((filter) => {
-              const isActive = activeFilter === filter.key;
-              return (
-                <button
-                  key={filter.key}
-                  className={`flex-none rounded-full px-4 py-2 text-sm transition-all active:scale-95 ${
-                    isActive
-                      ? "border border-[#9ec7cf] bg-[#e7f4f7] font-semibold text-[#0f5d6b] shadow-sm"
-                      : "border border-[#d5dde0] bg-[#f7fbfc] font-medium text-[#5b6669] hover:bg-[#eef4f6]"
-                  }`}
-                  type="button"
-                  onClick={() => setActiveFilter(filter.key)}
-                >
-                  {filter.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              className="flex-1 rounded-xl border py-3.5 font-semibold tracking-tight shadow-sm transition-all hover:bg-[#c8e2e9] active:scale-95"
-              style={{ backgroundColor: "#d4eaf0", borderColor: "#7eaab3", color: "#0b4f5b" }}
-              type="button"
-              onClick={openModal}
-            >
-              <span className="material-symbols-outlined mr-1 align-middle">add</span>
-              <span className="align-middle">Thêm dòng mới</span>
-            </button>
-            <button
-              className="inline-flex h-14 w-14 items-center justify-center rounded-lg border border-[#efc6c6] bg-[#fce8e8] px-3 text-[#a63737] shadow-sm transition-all hover:bg-[#f9dede] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-              disabled={selectedRows.length === 0}
-              onClick={openDeleteCheckedRowsConfirm}
-              aria-label="Xóa đã chọn"
-            >
-              <span className="material-symbols-outlined">delete</span>
-            </button>
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="mb-2 flex items-center justify-between px-2">
-            <h2 className="text-xs font-black uppercase tracking-wider text-outline">Bảng chấm công</h2>
-            <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">
-              {visibleRows.length} dòng
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {groupedVisibleRows.map((group) => {
-              const isExpanded = expandedDates.has(group.date);
-
-              return (
-                <div className="overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-soft" key={group.date}>
-                  <div
-                    className="cursor-pointer px-4 py-3 transition-colors hover:bg-surface-container"
-                    onClick={() => toggleGroup(group.date)}
-                  >
-                    <div className="grid grid-cols-[repeat(12,minmax(0,1fr))] items-center gap-2">
-                      <div className="col-span-1 flex justify-center">
-                        <input
-                          checked={group.checkedCount === group.shiftCount && group.shiftCount > 0}
-                          className="rounded border-outline-variant text-primary focus:ring-primary"
-                          type="checkbox"
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={(event) => {
-                            event.stopPropagation();
-                            handleCheckAllInGroup(group.date, event.target.checked);
-                          }}
-                        />
-                      </div>
-                      <div className="col-span-4 min-w-0 text-sm font-black text-primary">
-                        <span className="min-w-0 truncate">
-                          {group.dayOfWeek} - {formatDate(group.date)}
-                        </span>
-                      </div>
-                      <div className="col-span-3 flex justify-center">
-                        <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{group.shiftCount} ca</span>
-                      </div>
-                      <div className="col-span-2 text-right text-sm font-bold text-on-surface">{formatHoursAsHourMinute(group.totalHours)}</div>
-                      <div className="col-span-1 flex justify-center">
-                        <button
-                          aria-expanded={isExpanded}
-                          className="inline-flex h-6 w-8 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleGroup(group.date);
-                          }}
-                        >
-                          <span className={`material-symbols-outlined transition-transform ${isExpanded ? "rotate-180" : "rotate-0"}`}>
-                            expand_more
-                          </span>
-                        </button>
-                      </div>
-                      <div className="col-span-1 flex justify-center">
-                        <button
-                          aria-label="Xóa ngày"
-                          className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openDeleteDayConfirm(group.date);
-                          }}
-                        >
-                          <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-1 pl-9 text-[11px] font-medium text-on-surface-variant">{group.checkedCount}/{group.shiftCount} dòng đã chọn</div>
-                  </div>
-
-                  {isExpanded ? (
-                    <div className="border-t border-outline-variant/15">
-                      <div className="grid grid-cols-[repeat(11,minmax(0,1fr))] gap-2 bg-surface-container px-4 py-3 text-[10px] font-black uppercase tracking-tighter text-on-surface-variant">
-                        <div className="col-span-1 text-center"></div>
-                        <div className="col-span-1 text-center">Thứ</div>
-                        <div className="col-span-2 text-center">Ngày</div>
-                        <div className="col-span-2 text-center">Giờ làm</div>
-                        <div className="col-span-3 text-center">Tổng giờ</div>
-                        <div className="col-span-1 text-center">Sửa</div>
-                        <div className="col-span-1 text-center">Xóa</div>
-                      </div>
-
-                      <div className="divide-y divide-outline-variant/15">
-                        {group.rows.map((row, index) => {
-                          const zebraClass = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                          return (
-                            <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${zebraClass}`} key={row.id}>
-                              <div className="col-span-1 flex justify-center">
-                                <input
-                                  checked={row.checked}
-                                  className="rounded border-outline-variant text-primary focus:ring-primary"
-                                  type="checkbox"
-                                  onChange={(event) => handleToggleRow(row.id, event.target.checked)}
-                                />
-                              </div>
-                              <div className="col-span-1 text-center text-sm font-bold text-primary">{row.dayOfWeek}</div>
-                              <div className="col-span-2 text-center text-xs text-on-surface-variant">{formatDate(row.date)}</div>
-                              <div className="col-span-2 text-xs font-medium">{renderSlotDisplay(row.slot)}</div>
-                              <div className="col-span-3 text-center text-sm font-bold">{formatHoursAsHourMinute(row.hours)}</div>
-                              <div className="col-span-1 flex justify-center">
-                                <button
-                                  aria-label="Sửa dòng"
-                                  className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
-                                  type="button"
-                                  onClick={() => handleEditRow(row.id)}
-                                >
-                                  <span className="material-symbols-outlined text-[18px] leading-none">edit</span>
-                                </button>
-                              </div>
-                              <div className="col-span-1 flex justify-center">
-                                <button
-                                  aria-label="Xóa dòng"
-                                  className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
-                                  type="button"
-                                  onClick={() => openDeleteConfirm(row.id)}
-                                >
-                                  <span className="material-symbols-outlined text-[18px] leading-none">delete</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-
-          {visibleRows.length === 0 ? (
-            <p className="rounded-xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">
-              Không có dòng nào phù hợp với bộ lọc hiện tại.
-            </p>
-          ) : null}
-
-        </section>
-      </main>
-
-      <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-        <div className="mx-auto max-w-lg rounded-2xl border border-primary/20 bg-gradient-to-r from-primary to-primary-container p-4 shadow-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-on-primary/70">Tổng giờ làm đã chọn</p>
-              <p className="text-2xl font-black text-on-primary">
-                {formatHoursAsHourMinute(totalSelectedHours)}
-                <span className="text-sm font-normal opacity-80"> giờ</span>
-              </p>
-              <p className="mt-1 text-xs text-on-primary/80">{selectedRows.length} dòng được chọn</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10">
-              <span className="material-symbols-outlined text-on-primary">query_stats</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      {/* Modals - shared across both pages */}
       <DeleteRowConfirmModal isOpen={Boolean(pendingDeleteRowId)} row={pendingDeleteRow} onClose={closeDeleteConfirm} onConfirm={confirmDeleteRow} />
-
       <DeleteDayConfirmModal
         isOpen={Boolean(pendingDeleteDayDate)}
         summary={pendingDeleteDaySummary}
         onClose={closeDeleteDayConfirm}
         onConfirm={confirmDeleteDay}
       />
-
       <DeleteCheckedRowsConfirmModal
         isOpen={isDeleteCheckedRowsModalOpen}
         summary={checkedRowsSummary}
         onClose={closeDeleteCheckedRowsModal}
         onConfirm={confirmDeleteCheckedRows}
       />
-
       <ExportMonthModal
         isOpen={isExportMonthModalOpen}
         monthValue={exportMonthValue}
@@ -1263,7 +868,6 @@ function App(): JSX.Element {
         onCancel={closeExportMonthModal}
         onContinue={proceedExportConfirmation}
       />
-
       <ExportConfirmModal
         isOpen={isExportConfirmModalOpen}
         isExporting={isExporting}
@@ -1271,18 +875,24 @@ function App(): JSX.Element {
         summary={
           pendingExportSummary
             ? {
-                totalDays: pendingExportSummary.totalDays,
-                totalShifts: pendingExportSummary.totalShifts,
-                totalHoursLabel: formatHoursAsHourMinute(pendingExportSummary.totalHours)
+                main: {
+                  totalDays: pendingExportSummary.main.totalDays,
+                  totalShifts: pendingExportSummary.main.totalShifts,
+                  totalHoursLabel: formatHoursAsHourMinute(pendingExportSummary.main.totalHours)
+                },
+                gold: {
+                  totalDays: pendingExportSummary.gold.totalDays,
+                  totalShifts: pendingExportSummary.gold.totalShifts,
+                  totalHoursLabel: formatHoursAsHourMinute(pendingExportSummary.gold.totalHours)
+                },
+                overallHoursLabel: formatHoursAsHourMinute(pendingExportSummary.main.totalHours + pendingExportSummary.gold.totalHours)
               }
             : null
         }
         onCancel={cancelExportConfirmation}
         onConfirm={confirmExportToGoogleSheet}
       />
-
       <ExportResultModal isOpen={isExportResultModalOpen} publicUrl={exportPublicUrl} onClose={closeExportResultModal} onCopy={handleCopyExportUrl} />
-
       <WorkRowModal
         isOpen={isModalOpen}
         editingRowId={editingRowId}
@@ -1304,16 +914,14 @@ function App(): JSX.Element {
         onEndHourChange={(value) => setFormEndHour(sanitizeTimeInput(value))}
         onEndMinuteChange={(value) => setFormEndMinute(sanitizeTimeInput(value))}
         onToggleDefaultSettingIndex={toggleDefaultSettingIndex}
-        onToggleAllDefaultSettings={toggleAllDefaultSettings}
+        onToggleAllDefaultSettings={() => toggleAllDefaultSettings(dayDefaultSettingsForFormDay.length)}
       />
-
       <DeleteSettingConfirmModal
         isOpen={Boolean(pendingDeleteSettingId)}
         setting={pendingDeleteSetting}
         onClose={closeDeleteSettingConfirm}
         onConfirm={confirmDeleteDefaultSetting}
       />
-
       <DayDefaultSettingsModal
         isOpen={isSettingsModalOpen}
         isFormOpen={isSettingsFormOpen}
@@ -1327,8 +935,15 @@ function App(): JSX.Element {
         settingFormEndMinute={settingFormEndMinute}
         settingFormSlotLabel={settingFormSlotCalculation.isValid ? formatHoursAsHourMinute(settingFormSlotCalculation.hours) : "--"}
         onClose={closeSettingsModal}
-        onOpenAddSettingForm={openAddSettingForm}
-        onOpenEditSettingForm={openEditSettingForm}
+        onOpenAddSettingForm={() => openSettingsFormForAdd(formDayOfWeek)}
+        onOpenEditSettingForm={(settingId) => {
+          const setting = currentDayDefaultSettings.find((item) => item.id === settingId);
+          if (!setting) {
+            return;
+          }
+
+          openSettingsFormForEdit(setting.dayOfWeek, setting.slot, setting.id);
+        }}
         onToggleSettingDay={toggleSettingDay}
         onDeleteDefaultSetting={handleDeleteDefaultSetting}
         onSettingFormDayOfWeekChange={setSettingFormDayOfWeek}
@@ -1336,7 +951,7 @@ function App(): JSX.Element {
         onSettingFormStartMinuteChange={(value) => setSettingFormStartMinute(sanitizeTimeInput(value))}
         onSettingFormEndHourChange={(value) => setSettingFormEndHour(sanitizeTimeInput(value))}
         onSettingFormEndMinuteChange={(value) => setSettingFormEndMinute(sanitizeTimeInput(value))}
-        onCloseForm={closeSettingsForm}
+        onCloseForm={closeSettingsFormHook}
         onSubmitForm={handleSubmitDayDefaultSetting}
       />
     </>
