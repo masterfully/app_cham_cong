@@ -59,31 +59,8 @@ export function persistDayDefaultSettings(settings: DayDefaultSetting[]): void {
   }
 }
 
-function buildSeedRows(): WorkRow[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const templates = [
-    { dayOffset: 0, slot: "08:00 - 12:00", hours: 4.0, checked: true },
-    { dayOffset: 1, slot: "13:00 - 17:00", hours: 4.0, checked: true },
-    { dayOffset: 2, slot: "09:00 - 12:00", hours: 3.0, checked: false },
-    { dayOffset: 4, slot: "18:00 - 20:00", hours: 2.0, checked: true },
-    { dayOffset: 6, slot: "08:00 - 11:00", hours: 3.0, checked: false }
-  ];
-
-  return templates.map((template) => {
-    const rowDate = new Date(today);
-    rowDate.setDate(today.getDate() - template.dayOffset);
-    return {
-      id: createId(),
-      dayOfWeek: DAY_NAMES[rowDate.getDay()],
-      date: toISODate(rowDate),
-      slot: template.slot,
-      hours: template.hours,
-      checked: template.checked
-    };
-  });
-}
+// Removed automatic seed data. The app should start with an empty rows array
+// unless the user has persisted data in localStorage.
 
 export function normalizeRow(row: WorkRowInput): WorkRow {
   const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(row.date ?? "")) ? String(row.date) : toISODate(new Date());
@@ -105,12 +82,12 @@ export function loadRows(): WorkRow[] {
   try {
     const rawData = localStorage.getItem(STORAGE_KEY);
     if (!rawData) {
-      return buildSeedRows();
+      return [];
     }
 
     const parsedData: unknown = JSON.parse(rawData);
     if (!Array.isArray(parsedData)) {
-      return buildSeedRows();
+      return [];
     }
 
     // If the user explicitly cleared all rows, an empty array is valid and should be returned as-is.
@@ -121,7 +98,7 @@ export function loadRows(): WorkRow[] {
     return parsedData.map((row) => normalizeRow(row as WorkRowInput));
   } catch (error) {
     console.warn("Dữ liệu localStorage không hợp lệ", error);
-    return buildSeedRows();
+    return [];
   }
 }
 
