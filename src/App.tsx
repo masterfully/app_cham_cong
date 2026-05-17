@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { DAY_NAME_ALIASES, DAY_NAMES, DEFAULT_SLOT_PARTS } from "./constants";
 import {
   formatDateWithYear,
@@ -8,7 +8,7 @@ import {
   toISODate
 } from "./utils/date";
 import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
-import { createId, getDayNameFromDate, loadDayDefaultSettings, loadRows, persistDayDefaultSettings, persistRows } from "./utils/storage";
+import { createId, getDayNameFromDate, loadDayDefaultSettings, loadRows } from "./utils/storage";
 import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
 import { getSettingsForDay, getSelectedDefaultSettings, getTotalHoursForSettings, getRowConflict } from "./utils/appHelpers";
 import { createCustomRow } from "./utils/rowFactory";
@@ -32,7 +32,10 @@ import { useToast } from "./hooks/useToast";
 import { useExportWorkflow } from "./hooks/useExportWorkflow";
 import { useWorkRowForm } from "./hooks/useWorkRowForm";
 import { useSettingsForm } from "./hooks/useSettingsForm";
-import { loadGoldDayDefaultSettings, loadGoldRows, persistGoldDayDefaultSettings, persistGoldRows } from "./utils/goldStorage";
+import { loadGoldDayDefaultSettings, loadGoldRows } from "./utils/goldStorage";
+import useMonthAutoSeed from "./hooks/useMonthAutoSeed";
+import usePersistData from "./hooks/usePersistData";
+import useModalEscape from "./hooks/useModalEscape";
 
 function App(): JSX.Element {
   const [currentPage, setCurrentPage] = useState<"main" | "gold">("main");
@@ -136,38 +139,10 @@ function App(): JSX.Element {
   const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
   const [isExportResultModalOpen, setIsExportResultModalOpen] = useState(false);
 
-  useEffect(() => {
-    persistRows(rows);
-  }, [rows]);
-
-  useEffect(() => {
-    persistDayDefaultSettings(dayDefaultSettings);
-  }, [dayDefaultSettings]);
-
-  useEffect(() => {
-    persistGoldRows(goldRows);
-  }, [goldRows]);
-
-  useEffect(() => {
-    persistGoldDayDefaultSettings(goldDayDefaultSettings);
-  }, [goldDayDefaultSettings]);
-
-  useEffect(() => {
-    if (!isModalOpen) {
-      return;
-    }
-
-    const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        setIsModalOpen(false);
-      }
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isModalOpen]);
+  // persist data and extracted behaviors
+  usePersistData({ rows, dayDefaultSettings, goldRows, goldDayDefaultSettings });
+  useMonthAutoSeed({ rows, setRows, dayDefaultSettings, goldRows, setGoldRows, goldDayDefaultSettings, showToast });
+  useModalEscape(isModalOpen, () => setIsModalOpen(false));
 
   const visibleRows = useMemo(() => {
     return currentPageContent.visibleRows;

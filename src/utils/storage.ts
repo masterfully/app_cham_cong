@@ -109,8 +109,13 @@ export function loadRows(): WorkRow[] {
     }
 
     const parsedData: unknown = JSON.parse(rawData);
-    if (!Array.isArray(parsedData) || parsedData.length === 0) {
+    if (!Array.isArray(parsedData)) {
       return buildSeedRows();
+    }
+
+    // If the user explicitly cleared all rows, an empty array is valid and should be returned as-is.
+    if (parsedData.length === 0) {
+      return [];
     }
 
     return parsedData.map((row) => normalizeRow(row as WorkRowInput));
