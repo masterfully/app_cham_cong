@@ -180,7 +180,7 @@ function DayDefaultSettingsModal({
               <div className="rounded-xl bg-surface-container-highest px-3 py-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="mb-1 block text-sm font-semibold text-on-surface-variant">Bắt đầu</span>
+                    <span className="mb-1 block text-center text-sm font-semibold text-primary">Bắt đầu</span>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                       <TimeWheelInput
                         id="settingFormStartHourWheel"
@@ -192,13 +192,14 @@ function DayDefaultSettingsModal({
                         id="settingFormStartMinuteWheel"
                         value={settingFormStartMinute}
                         options={MINUTE_OPTIONS}
+                        showArrows
                         onChange={(minute) => onSettingFormStartMinuteChange(minute)}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <span className="mb-1 block text-sm font-semibold text-on-surface-variant">Kết thúc</span>
+                    <span className="mb-1 block text-center text-sm font-semibold text-primary">Kết thúc</span>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                       <TimeWheelInput
                         id="settingFormEndHourWheel"
@@ -210,6 +211,7 @@ function DayDefaultSettingsModal({
                         id="settingFormEndMinuteWheel"
                         value={settingFormEndMinute}
                         options={MINUTE_OPTIONS}
+                        showArrows
                         onChange={(minute) => onSettingFormEndMinuteChange(minute)}
                       />
                     </div>

@@ -179,34 +179,42 @@ function WorkRowModal({
                 </label>
                 <div className="mt-1.5 rounded-xl bg-surface-container-highest px-3 py-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                      <TimeWheelInput
-                        id="formStartHourWheel"
-                        value={formStartHour}
-                        onChange={(hour) => onStartHourChange(hour)}
-                      />
-                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
-                      <TimeWheelInput
-                        id="formStartMinuteWheel"
-                        value={formStartMinute}
-                        options={MINUTE_OPTIONS}
-                        onChange={(minute) => onStartMinuteChange(minute)}
-                      />
+                    <div>
+                      <span className="mb-1 block text-center text-sm font-semibold text-primary">Bắt đầu</span>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                        <TimeWheelInput
+                          id="formStartHourWheel"
+                          value={formStartHour}
+                          onChange={(hour) => onStartHourChange(hour)}
+                        />
+                        <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                        <TimeWheelInput
+                          id="formStartMinuteWheel"
+                          value={formStartMinute}
+                          options={MINUTE_OPTIONS}
+                          showArrows
+                          onChange={(minute) => onStartMinuteChange(minute)}
+                        />
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                      <TimeWheelInput
-                        id="formEndHourWheel"
-                        value={formEndHour}
-                        onChange={(hour) => onEndHourChange(hour)}
-                      />
-                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
-                      <TimeWheelInput
-                        id="formEndMinuteWheel"
-                        value={formEndMinute}
-                        options={MINUTE_OPTIONS}
-                        onChange={(minute) => onEndMinuteChange(minute)}
-                      />
+                    <div>
+                      <span className="mb-1 block text-center text-sm font-semibold text-primary">Kết thúc</span>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                        <TimeWheelInput
+                          id="formEndHourWheel"
+                          value={formEndHour}
+                          onChange={(hour) => onEndHourChange(hour)}
+                        />
+                        <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                        <TimeWheelInput
+                          id="formEndMinuteWheel"
+                          value={formEndMinute}
+                          options={MINUTE_OPTIONS}
+                          showArrows
+                          onChange={(minute) => onEndMinuteChange(minute)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

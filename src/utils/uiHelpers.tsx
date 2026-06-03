@@ -11,8 +11,10 @@ export function renderSlotDisplay(slot: string): JSX.Element {
   }
 
   return (
-    <span className="block w-fit mx-auto text-left whitespace-nowrap">
-      {`${start} - ${end}`}
+    <span className="block w-fit mx-auto text-left leading-tight">
+      <span>{`${start} -`}</span>
+      <br />
+      <span>{end}</span>
     </span>
   );
 }
