@@ -1,6 +1,9 @@
 import { FormEvent } from "react";
 import { formatDateWithYear, getDayNameFromDate } from "../../utils/date";
 import { DayDefaultSetting } from "../../types";
+import TimeWheelInput from "../ui/TimeWheelInput";
+
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
 
 type WorkRowModalProps = {
   isOpen: boolean;
@@ -174,39 +177,38 @@ function WorkRowModal({
                 <label className="ml-1 text-[11px] font-bold uppercase text-on-surface-variant" htmlFor="formStartHour">
                   Giờ làm
                 </label>
-                <div className="mt-1.5 grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl bg-surface-container-highest px-3 py-3">
-                  <input
-                    className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                    id="formStartHour"
-                    inputMode="numeric"
-                    placeholder="HH"
-                    value={formStartHour}
-                    onChange={(event) => onStartHourChange(event.target.value)}
-                  />
-                  <span className="text-sm font-bold text-on-surface-variant">:</span>
-                  <input
-                    className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                    inputMode="numeric"
-                    placeholder="MM"
-                    value={formStartMinute}
-                    onChange={(event) => onStartMinuteChange(event.target.value)}
-                  />
-                  <span className="px-1 text-sm font-black text-on-surface-variant">-</span>
-                  <input
-                    className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                    inputMode="numeric"
-                    placeholder="HH"
-                    value={formEndHour}
-                    onChange={(event) => onEndHourChange(event.target.value)}
-                  />
-                  <span className="text-sm font-bold text-on-surface-variant">:</span>
-                  <input
-                    className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                    inputMode="numeric"
-                    placeholder="MM"
-                    value={formEndMinute}
-                    onChange={(event) => onEndMinuteChange(event.target.value)}
-                  />
+                <div className="mt-1.5 rounded-xl bg-surface-container-highest px-3 py-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <TimeWheelInput
+                        id="formStartHourWheel"
+                        value={formStartHour}
+                        onChange={(hour) => onStartHourChange(hour)}
+                      />
+                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                      <TimeWheelInput
+                        id="formStartMinuteWheel"
+                        value={formStartMinute}
+                        options={MINUTE_OPTIONS}
+                        onChange={(minute) => onStartMinuteChange(minute)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <TimeWheelInput
+                        id="formEndHourWheel"
+                        value={formEndHour}
+                        onChange={(hour) => onEndHourChange(hour)}
+                      />
+                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                      <TimeWheelInput
+                        id="formEndMinuteWheel"
+                        value={formEndMinute}
+                        options={MINUTE_OPTIONS}
+                        onChange={(minute) => onEndMinuteChange(minute)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}

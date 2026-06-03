@@ -11,9 +11,8 @@ export function renderSlotDisplay(slot: string): JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex w-fit flex-col items-start leading-tight text-left">
-      <span>{`${start} -`}</span>
-      <span>{end}</span>
-    </div>
+    <span className="block w-fit mx-auto text-left whitespace-nowrap">
+      {`${start} - ${end}`}
+    </span>
   );
 }

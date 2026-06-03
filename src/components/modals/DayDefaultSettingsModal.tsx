@@ -1,6 +1,9 @@
 import { FormEvent } from "react";
 import { DAY_NAMES } from "../../constants";
 import { DayDefaultSettingGroup } from "../../types";
+import TimeWheelInput from "../ui/TimeWheelInput";
+
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
 
 type DayDefaultSettingsModalProps = {
   isOpen: boolean;
@@ -174,43 +177,44 @@ function DayDefaultSettingsModal({
               <label className="ml-1 text-[11px] font-bold uppercase text-on-surface-variant" htmlFor="settingFormStartHour">
                 Giờ mặc định (HH:MM - HH:MM)
               </label>
-              <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-xl bg-surface-container-highest px-3 py-3">
-                <input
-                  className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                  id="settingFormStartHour"
-                  inputMode="numeric"
-                  placeholder="HH"
-                  required
-                  value={settingFormStartHour}
-                  onChange={(event) => onSettingFormStartHourChange(event.target.value)}
-                />
-                <span className="text-sm font-bold text-on-surface-variant">:</span>
-                <input
-                  className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                  inputMode="numeric"
-                  placeholder="MM"
-                  required
-                  value={settingFormStartMinute}
-                  onChange={(event) => onSettingFormStartMinuteChange(event.target.value)}
-                />
-                <span className="px-1 text-sm font-black text-on-surface-variant">-</span>
-                <input
-                  className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                  inputMode="numeric"
-                  placeholder="HH"
-                  required
-                  value={settingFormEndHour}
-                  onChange={(event) => onSettingFormEndHourChange(event.target.value)}
-                />
-                <span className="text-sm font-bold text-on-surface-variant">:</span>
-                <input
-                  className="w-full rounded-lg border-none bg-white/80 px-2 py-2 text-center text-on-surface focus:ring-2 focus:ring-primary/20"
-                  inputMode="numeric"
-                  placeholder="MM"
-                  required
-                  value={settingFormEndMinute}
-                  onChange={(event) => onSettingFormEndMinuteChange(event.target.value)}
-                />
+              <div className="rounded-xl bg-surface-container-highest px-3 py-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="mb-1 block text-sm font-semibold text-on-surface-variant">Bắt đầu</span>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <TimeWheelInput
+                        id="settingFormStartHourWheel"
+                        value={settingFormStartHour}
+                        onChange={(hour) => onSettingFormStartHourChange(hour)}
+                      />
+                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                      <TimeWheelInput
+                        id="settingFormStartMinuteWheel"
+                        value={settingFormStartMinute}
+                        options={MINUTE_OPTIONS}
+                        onChange={(minute) => onSettingFormStartMinuteChange(minute)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="mb-1 block text-sm font-semibold text-on-surface-variant">Kết thúc</span>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <TimeWheelInput
+                        id="settingFormEndHourWheel"
+                        value={settingFormEndHour}
+                        onChange={(hour) => onSettingFormEndHourChange(hour)}
+                      />
+                      <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
+                      <TimeWheelInput
+                        id="settingFormEndMinuteWheel"
+                        value={settingFormEndMinute}
+                        options={MINUTE_OPTIONS}
+                        onChange={(minute) => onSettingFormEndMinuteChange(minute)}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <p className="ml-1 text-[11px] text-on-surface-variant">Tổng giờ: {settingFormSlotLabel}</p>
             </div>
