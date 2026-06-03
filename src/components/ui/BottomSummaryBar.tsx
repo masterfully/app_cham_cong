@@ -10,7 +10,7 @@ type BottomSummaryBarProps = {
 function BottomSummaryBar({ title, totalHoursLabel, selectedCount, onNavigate, navigateAriaLabel, navigateIcon }: BottomSummaryBarProps): JSX.Element {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-      <div className="mx-auto max-w-lg rounded-2xl border border-primary/20 bg-gradient-to-r from-primary to-primary-container p-4 shadow-xl">
+      <div className="mx-auto max-w-lg rounded-2xl border border-primary/20 bg-gradient-to-r from-primary to-primary-container p-4 shadow-xl bottom-summary">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-on-primary/70">{title}</p>
@@ -23,7 +23,7 @@ function BottomSummaryBar({ title, totalHoursLabel, selectedCount, onNavigate, n
           <button
             type="button"
             onClick={onNavigate}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
+            className="btn-switch"
             aria-label={navigateAriaLabel}
           >
             <span className="material-symbols-outlined text-on-primary">{navigateIcon}</span>

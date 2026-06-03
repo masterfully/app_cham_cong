@@ -100,6 +100,16 @@ body {
 .toast-panel {
   animation: toastIn 220ms ease-in;
 }
+
+/* Smooth multi-stop gradient for bottom summary bar to avoid banding */
+.bottom-summary {
+  /* fallback for Tailwind classes: use a three-stop gradient for smoother blending */
+  background-image: linear-gradient(90deg, #d63384 0%, #e96a95 48%, #ffd6ec 100%);
+  /* improve rendering on some browsers */
+  background-repeat: no-repeat;
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
+}
 /* Button utilities (single source of truth) */
 .btn {
   display: inline-flex;
@@ -144,4 +154,25 @@ body {
   min-width: 56px;
   border-radius: 0.75rem;
 }
+
+/* Highlighted circular switch button used in bottom summary */
+.btn-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 9999px; /* keep circular */
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: 0 6px 18px rgba(214,51,132,0.12), 0 1px 2px rgba(0,0,0,0.06);
+  transition: transform 0.14s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+}
+.btn-switch:hover {
+  transform: translateY(-2px) scale(1.04);
+  background: rgba(255,255,255,0.28);
+  box-shadow: 0 10px 30px rgba(214,51,132,0.16), 0 2px 6px rgba(0,0,0,0.08);
+}
+.btn-switch:active { transform: translateY(0) scale(0.995); }
 
