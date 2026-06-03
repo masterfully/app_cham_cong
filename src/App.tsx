@@ -43,20 +43,24 @@ function App(): JSX.Element {
   // Main page state
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
   const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
+  const [mainSelectedMonth, setMainSelectedMonth] = useState<string | null>(null);
   const mainPageContent = usePageContent({
     rows,
     dayDefaultSettings,
     activeFilter: "all",
+    selectedMonth: mainSelectedMonth,
   });
   
   // Gold page state
   const [goldRows, setGoldRows] = useState<WorkRow[]>(() => loadGoldRows());
   const [goldDayDefaultSettings, setGoldDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadGoldDayDefaultSettings());
+  const [goldSelectedMonth, setGoldSelectedMonth] = useState<string | null>(null);
   
   const goldPageContent = usePageContent({
     rows: goldRows,
     dayDefaultSettings: goldDayDefaultSettings,
     activeFilter: "all",
+    selectedMonth: goldSelectedMonth,
   });
 
   const { toastState, showToast } = useToast();
@@ -230,6 +234,25 @@ function App(): JSX.Element {
     };
   }, [pendingExportMonthValue, rows, goldRows]);
 
+  const currentMonthValue = currentPage === "main" ? mainSelectedMonth : goldSelectedMonth;
+  const setCurrentMonthValue = currentPage === "main" ? setMainSelectedMonth : setGoldSelectedMonth;
+  const currentPageRows = currentPage === "main" ? rows : goldRows;
+
+  const availableMonthOptions = useMemo(() => {
+    const monthValues = new Set<string>();
+
+    for (const row of currentPageRows) {
+      const monthValue = row.date.slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(monthValue)) {
+        monthValues.add(monthValue);
+      }
+    }
+
+    return Array.from(monthValues).sort((left, right) => right.localeCompare(left));
+  }, [currentPageRows]);
+
+  const monthButtonLabel = currentMonthValue ? formatMonthYearLabel(currentMonthValue) : "Chọn tháng";
+
   const formSlotCalculation = useMemo(
     () => calculateSlotAndHours(formStartHour, formStartMinute, formEndHour, formEndMinute),
     [formStartHour, formStartMinute, formEndHour, formEndMinute]
@@ -296,6 +319,19 @@ function App(): JSX.Element {
     setFormEndMinute(parts.endMinute);
     setFormMode(defaultSettingsForDay.length > 0 ? "default" : "custom");
     setIsModalOpen(true);
+  }
+
+  function handleSelectMonth(monthValue: string): void {
+    setCurrentMonthValue(monthValue);
+    currentPageContent.setActiveFilter("month");
+  }
+
+  function handleFilterChange(filter: any): void {
+    if (filter === "month") {
+      setCurrentMonthValue(null);
+    }
+
+    currentPageContent.setActiveFilter(filter);
   }
 
   function closeModal(): void {
@@ -756,14 +792,17 @@ function App(): JSX.Element {
             expandedDates={currentPageContent.expandedDates}
             visibleRowsCount={visibleRows.length}
             activeFilter={currentPageContent.activeFilter as any}
+            monthButtonLabel={monthButtonLabel}
+            monthOptions={availableMonthOptions}
+            selectedMonth={currentMonthValue}
             onToggleGroup={toggleGroup}
             onToggleRow={handleToggleRow}
             onCheckAllInGroup={handleCheckAllInGroup}
             onEditRow={handleEditRow}
             onDeleteRow={openDeleteConfirm}
             onDeleteDay={openDeleteDayConfirm}
-            onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
-            
+            onFilterChange={handleFilterChange}
+            onSelectMonth={handleSelectMonth}
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}
@@ -795,14 +834,17 @@ function App(): JSX.Element {
             expandedDates={currentPageContent.expandedDates}
             visibleRowsCount={visibleRows.length}
             activeFilter={currentPageContent.activeFilter as any}
+            monthButtonLabel={monthButtonLabel}
+            monthOptions={availableMonthOptions}
+            selectedMonth={currentMonthValue}
             onToggleGroup={toggleGroup}
             onToggleRow={handleToggleRow}
             onCheckAllInGroup={handleCheckAllInGroup}
             onEditRow={handleEditRow}
             onDeleteRow={openDeleteConfirm}
             onDeleteDay={openDeleteDayConfirm}
-            onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
-            
+            onFilterChange={handleFilterChange}
+            onSelectMonth={handleSelectMonth}
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}

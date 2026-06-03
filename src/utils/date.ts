@@ -89,3 +89,13 @@ export function isInFilter(dateString: string, activeFilter: FilterType): boolea
 
   return rowDate.getMonth() === today.getMonth() && rowDate.getFullYear() === today.getFullYear();
 }
+
+export function isInYearMonth(dateString: string, yearMonth: string): boolean {
+  const parsed = parseYearMonth(yearMonth);
+  if (!parsed) {
+    return false;
+  }
+
+  const rowDate = toDateOnly(dateString);
+  return rowDate.getFullYear() === parsed.year && rowDate.getMonth() === parsed.month - 1;
+}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { WorkRowGroup } from "../types";
 import { formatDate } from "../utils/date";
 import { formatHoursAsHourMinute } from "../utils/time";
@@ -11,6 +12,9 @@ interface PageContentSectionProps {
   expandedDates: Set<string>;
   visibleRowsCount: number;
   activeFilter: "all" | "today" | "this_week" | "this_month";
+  monthButtonLabel: string;
+  monthOptions: string[];
+  selectedMonth: string | null;
   onToggleGroup: (date: string) => void;
   onToggleRow: (rowId: string, checked: boolean) => void;
   onCheckAllInGroup: (date: string, checked: boolean) => void;
@@ -18,9 +22,19 @@ interface PageContentSectionProps {
   onDeleteRow: (rowId: string) => void;
   onDeleteDay: (date: string) => void;
   onFilterChange: (filter: "all" | "today" | "this_week" | "this_month") => void;
+  onSelectMonth: (monthValue: string) => void;
   onAddRow: () => void;
   onDeleteCheckedRows: () => void;
   selectedRowsCount: number;
+}
+
+function formatMonthOption(value: string): string {
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    return value;
+  }
+
+  return `Tháng ${Number(match[2])}/${Number(match[1])}`;
 }
 
 export default function PageContentSection({
@@ -30,6 +44,9 @@ export default function PageContentSection({
   expandedDates,
   visibleRowsCount,
   activeFilter,
+  monthButtonLabel,
+  monthOptions,
+  selectedMonth,
   onToggleGroup,
   onToggleRow,
   onCheckAllInGroup,
@@ -37,26 +54,29 @@ export default function PageContentSection({
   onDeleteRow,
   onDeleteDay,
   onFilterChange,
+  onSelectMonth,
   onAddRow,
   onDeleteCheckedRows,
   selectedRowsCount
 }: PageContentSectionProps): JSX.Element {
+  const [isMonthMenuOpen, setIsMonthMenuOpen] = useState(false);
+
   return (
     <main className="mx-auto max-w-lg px-4 pb-44 pt-20">
       <section className="mb-6 space-y-4">
         {/* Search removed per request */}
 
-        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-              {FILTERS.map((filter) => {
+        <div className="no-scrollbar flex flex-nowrap gap-1.5 overflow-x-auto pb-1">
+          {FILTERS.map((filter) => {
             const isActive = activeFilter === filter.key;
             return (
               <button
                 key={filter.key}
-                    className={`flex-none rounded-full px-4 py-2 text-sm transition-all active:scale-95 ${
-                      isActive
-                        ? "border border-[#f3a6d1] bg-[#fff1f7] font-semibold text-[#7b0b4f] shadow-sm"
-                        : "border border-[#f0c7d9] bg-[#fff7fb] font-medium text-[#6b4b5b] hover:bg-[#fff0f6]"
-                    }`}
+                className={`flex-none min-h-8 whitespace-nowrap rounded-full px-2 py-1.5 text-sm leading-none transition-all active:scale-95 ${
+                  isActive
+                    ? "border border-[#f3a6d1] bg-[#fff1f7] font-semibold text-[#7b0b4f] shadow-sm"
+                    : "border border-[#f0c7d9] bg-[#fff7fb] font-medium text-[#6b4b5b] hover:bg-[#fff0f6]"
+                }`}
                 type="button"
                 onClick={() => onFilterChange(filter.key as any)}
               >
@@ -64,6 +84,48 @@ export default function PageContentSection({
               </button>
             );
           })}
+          <button
+            className="flex flex-none min-h-8 items-center gap-1 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-2 py-1.5 text-sm font-semibold leading-none text-primary shadow-sm transition-all hover:bg-primary/15 active:scale-95"
+            type="button"
+            onClick={() => setIsMonthMenuOpen((previous) => !previous)}
+          >
+            <span>{monthButtonLabel}</span>
+            <span className="material-symbols-outlined text-[18px] leading-none">arrow_drop_down</span>
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {isMonthMenuOpen ? (
+            <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface shadow-xl">
+              <div className="max-h-72 overflow-y-auto p-2">
+                {monthOptions.length > 0 ? (
+                  monthOptions.map((monthValue) => {
+                    const isActive = selectedMonth === monthValue;
+                    return (
+                      <button
+                        key={monthValue}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                          isActive 
+                            ? "bg-primary/10 font-semibold text-primary"
+                            : "text-on-surface hover:bg-surface-container"
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          onSelectMonth(monthValue);
+                          setIsMonthMenuOpen(false);
+                        }}
+                      >
+                        <span>{formatMonthOption(monthValue)}</span>
+                        {isActive ? <span className="material-symbols-outlined text-[18px] leading-none">check</span> : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-2.5 text-sm text-on-surface-variant">Không có tháng nào để chọn.</div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex gap-2">

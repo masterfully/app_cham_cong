@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback } from "react";
 import { WorkRow, FilterType, WorkRowGroup, DayDefaultSetting } from "../types";
-import { isInFilter, getDayNameFromDate } from "../utils/date";
+import { getCurrentYearMonth, getDayNameFromDate, isInFilter, isInYearMonth } from "../utils/date";
 
 interface UsePageContentState {
   rows: WorkRow[];
   dayDefaultSettings: DayDefaultSetting[];
   activeFilter: FilterType;
+  selectedMonth?: string | null;
 }
 
 export function usePageContent(state: UsePageContentState) {
@@ -14,8 +15,13 @@ export function usePageContent(state: UsePageContentState) {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
 
   const visibleRows = useMemo(() => {
+    if (activeFilter === "month") {
+      const monthValue = state.selectedMonth ?? getCurrentYearMonth();
+      return state.rows.filter((row) => isInYearMonth(row.date, monthValue));
+    }
+
     return state.rows.filter((row) => isInFilter(row.date, activeFilter));
-  }, [state.rows, activeFilter]);
+  }, [state.rows, activeFilter, state.selectedMonth]);
 
   const groupedVisibleRows = useMemo<WorkRowGroup[]>(() => {
     const groupMap = new Map<string, WorkRow[]>();
