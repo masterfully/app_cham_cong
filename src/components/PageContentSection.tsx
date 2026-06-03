@@ -78,7 +78,10 @@ export default function PageContentSection({
                     : "border border-[#f0c7d9] bg-[#fff7fb] font-medium text-[#6b4b5b] hover:bg-[#fff0f6]"
                 }`}
                 type="button"
-                onClick={() => onFilterChange(filter.key as any)}
+                onClick={() => {
+                  setIsMonthMenuOpen(false);
+                  onFilterChange(filter.key as any);
+                }}
               >
                 {filter.label}
               </button>
