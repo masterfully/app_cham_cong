@@ -11,7 +11,6 @@ interface PageContentSectionProps {
   expandedDates: Set<string>;
   visibleRowsCount: number;
   activeFilter: "all" | "today" | "this_week" | "this_month";
-  searchQuery: string;
   onToggleGroup: (date: string) => void;
   onToggleRow: (rowId: string, checked: boolean) => void;
   onCheckAllInGroup: (date: string, checked: boolean) => void;
@@ -19,7 +18,6 @@ interface PageContentSectionProps {
   onDeleteRow: (rowId: string) => void;
   onDeleteDay: (date: string) => void;
   onFilterChange: (filter: "all" | "today" | "this_week" | "this_month") => void;
-  onSearchChange: (query: string) => void;
   onAddRow: () => void;
   onDeleteCheckedRows: () => void;
   selectedRowsCount: number;
@@ -32,7 +30,6 @@ export default function PageContentSection({
   expandedDates,
   visibleRowsCount,
   activeFilter,
-  searchQuery,
   onToggleGroup,
   onToggleRow,
   onCheckAllInGroup,
@@ -40,7 +37,6 @@ export default function PageContentSection({
   onDeleteRow,
   onDeleteDay,
   onFilterChange,
-  onSearchChange,
   onAddRow,
   onDeleteCheckedRows,
   selectedRowsCount
@@ -48,31 +44,19 @@ export default function PageContentSection({
   return (
     <main className="mx-auto max-w-lg px-4 pb-44 pt-20">
       <section className="mb-6 space-y-4">
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-            <span className="material-symbols-outlined text-sm text-outline">search</span>
-          </div>
-          <input
-            autoComplete="off"
-            className="w-full rounded-xl border-none bg-surface-container-highest py-3 pl-10 pr-4 text-on-surface focus:ring-2 focus:ring-primary/20"
-            placeholder={`Tìm kiếm theo thứ, ngày, ${slotLabel}...`}
-            type="text"
-            value={searchQuery}
-            onChange={(event) => onSearchChange(event.target.value.trim())}
-          />
-        </div>
+        {/* Search removed per request */}
 
         <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-          {FILTERS.map((filter) => {
+              {FILTERS.map((filter) => {
             const isActive = activeFilter === filter.key;
             return (
               <button
                 key={filter.key}
-                className={`flex-none rounded-full px-4 py-2 text-sm transition-all active:scale-95 ${
-                  isActive
-                    ? "border border-[#9ec7cf] bg-[#e7f4f7] font-semibold text-[#0f5d6b] shadow-sm"
-                    : "border border-[#d5dde0] bg-[#f7fbfc] font-medium text-[#5b6669] hover:bg-[#eef4f6]"
-                }`}
+                    className={`flex-none rounded-full px-4 py-2 text-sm transition-all active:scale-95 ${
+                      isActive
+                        ? "border border-[#f3a6d1] bg-[#fff1f7] font-semibold text-[#7b0b4f] shadow-sm"
+                        : "border border-[#f0c7d9] bg-[#fff7fb] font-medium text-[#6b4b5b] hover:bg-[#fff0f6]"
+                    }`}
                 type="button"
                 onClick={() => onFilterChange(filter.key as any)}
               >
@@ -83,22 +67,11 @@ export default function PageContentSection({
         </div>
 
         <div className="flex gap-2">
-          <button
-            className="flex-1 rounded-xl border py-3.5 font-semibold tracking-tight shadow-sm transition-all hover:bg-[#c8e2e9] active:scale-95"
-            style={{ backgroundColor: "#d4eaf0", borderColor: "#7eaab3", color: "#0b4f5b" }}
-            type="button"
-            onClick={onAddRow}
-          >
+          <button className="btn btn-primary flex-1" type="button" onClick={onAddRow}>
             <span className="material-symbols-outlined mr-1 align-middle">add</span>
             <span className="align-middle">Thêm dòng mới</span>
           </button>
-          <button
-            className="inline-flex h-14 w-14 items-center justify-center rounded-lg border border-[#efc6c6] bg-[#fce8e8] px-3 text-[#a63737] shadow-sm transition-all hover:bg-[#f9dede] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            disabled={selectedRowsCount === 0}
-            onClick={onDeleteCheckedRows}
-            aria-label="Xóa đã chọn"
-          >
+          <button className="btn btn-ghost btn-icon" type="button" disabled={selectedRowsCount === 0} onClick={onDeleteCheckedRows} aria-label="Xóa đã chọn">
             <span className="material-symbols-outlined">delete</span>
           </button>
         </div>
@@ -162,7 +135,7 @@ export default function PageContentSection({
                     <div className="col-span-1 flex justify-center">
                       <button
                         aria-label="Xóa ngày"
-                        className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
+                          className="inline-flex h-6 w-8 items-center justify-center rounded-lg bg-primary text-on-primary transition-colors hover:bg-primary-container"
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -208,7 +181,7 @@ export default function PageContentSection({
                             <div className="col-span-1 flex justify-center">
                               <button
                                 aria-label="Sửa dòng"
-                                className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
+                                className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-outline-variant bg-white/85 text-on-surface transition-colors hover:bg-surface-container"
                                 type="button"
                                 onClick={() => onEditRow(row.id)}
                               >
@@ -218,7 +191,7 @@ export default function PageContentSection({
                             <div className="col-span-1 flex justify-center">
                               <button
                                 aria-label="Xóa dòng"
-                                className="inline-flex h-6 w-8 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
+                                className="inline-flex h-6 w-8 items-center justify-center rounded-lg bg-primary text-on-primary"
                                 type="button"
                                 onClick={() => onDeleteRow(row.id)}
                               >

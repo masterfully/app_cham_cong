@@ -1,3 +1,49 @@
+/* Basic button utilities to complement Tailwind classes */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem; /* rounded-xl */
+  /* fix height to match primary action button (h-14 ~ 56px) */
+  height: 56px;
+  min-height: 56px;
+  padding: 0 1rem; /* horizontal padding only */
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background-color: #d63384; /* matches primary token */
+  color: #ffffff;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+}
+
+/* Icon-only button sized to match the primary 'Thêm dòng mới' button height */
+.btn-icon {
+  height: 56px; /* h-14 equivalent */
+  width: 56px;
+  padding: 0;
+  min-width: 56px;
+  border-radius: 0.75rem; /* match Thêm dòng mới rounded-xl */
+}
+
+/* Disabled state
+   Keep visual parity with Tailwind disabled styles */
+.btn[disabled], .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ensure material icon vertical alignment */
+.btn .material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
 body {
   margin: 0;
   font-family: "Be Vietnam Pro", sans-serif;
@@ -54,3 +100,48 @@ body {
 .toast-panel {
   animation: toastIn 220ms ease-in;
 }
+/* Button utilities (single source of truth) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem; /* rounded-xl */
+  /* fixed height to match primary action button (h-14 ~ 56px) */
+  height: 56px;
+  min-height: 56px;
+  padding: 0 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease, transform 0.08s ease;
+}
+
+.btn-primary {
+  background-color: #d63384; /* primary */
+  color: #ffffff; /* on-primary */
+}
+.btn-primary:hover { background-color: #c22a76; }
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-primary-variant {
+  background-color: #ffd6ec; /* primary-container */
+  color: #6b0631;
+}
+
+.btn-ghost {
+  /* neutral ghost: subtle background and outline to remain visible */
+  background-color: rgba(255,255,255,0.85);
+  border: 1px solid #f0c7d9; /* outline-variant */
+  color: #2a0a1a; /* on-surface */
+}
+.btn-ghost:hover { background-color: #fff6fa; }
+
+/* Icon-only button sized to match primary */
+.btn-icon {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  min-width: 56px;
+  border-radius: 0.75rem;
+}
+

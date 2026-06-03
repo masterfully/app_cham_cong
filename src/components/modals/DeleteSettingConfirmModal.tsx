@@ -37,14 +37,14 @@ function DeleteSettingConfirmModal({ isOpen, setting, onClose, onConfirm }: Dele
         ) : null}
         <div className="flex gap-3">
           <button
-            className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
+            className="flex-1 rounded-2xl border border-outline-variant bg-white/85 py-3 font-semibold text-on-surface transition-all hover:bg-surface-container active:scale-95"
             type="button"
             onClick={onClose}
           >
             Hủy
           </button>
           <button
-            className="flex-1 rounded-2xl border border-[#efc6c6] bg-[#fce8e8] py-3 font-semibold text-[#a63737] transition-all hover:bg-[#f9dede] active:scale-95"
+            className="flex-1 rounded-2xl bg-primary py-3 font-semibold text-on-primary transition-all hover:bg-primary-container active:scale-95"
             type="button"
             onClick={onConfirm}
           >

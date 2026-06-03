@@ -47,7 +47,6 @@ function App(): JSX.Element {
     rows,
     dayDefaultSettings,
     activeFilter: "all",
-    searchQuery: ""
   });
   
   // Gold page state
@@ -58,7 +57,6 @@ function App(): JSX.Element {
     rows: goldRows,
     dayDefaultSettings: goldDayDefaultSettings,
     activeFilter: "all",
-    searchQuery: ""
   });
 
   const { toastState, showToast } = useToast();
@@ -758,7 +756,6 @@ function App(): JSX.Element {
             expandedDates={currentPageContent.expandedDates}
             visibleRowsCount={visibleRows.length}
             activeFilter={currentPageContent.activeFilter as any}
-            searchQuery={currentPageContent.searchQuery}
             onToggleGroup={toggleGroup}
             onToggleRow={handleToggleRow}
             onCheckAllInGroup={handleCheckAllInGroup}
@@ -766,7 +763,7 @@ function App(): JSX.Element {
             onDeleteRow={openDeleteConfirm}
             onDeleteDay={openDeleteDayConfirm}
             onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
-            onSearchChange={currentPageContent.setSearchQuery}
+            
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}
@@ -798,7 +795,6 @@ function App(): JSX.Element {
             expandedDates={currentPageContent.expandedDates}
             visibleRowsCount={visibleRows.length}
             activeFilter={currentPageContent.activeFilter as any}
-            searchQuery={currentPageContent.searchQuery}
             onToggleGroup={toggleGroup}
             onToggleRow={handleToggleRow}
             onCheckAllInGroup={handleCheckAllInGroup}
@@ -806,7 +802,7 @@ function App(): JSX.Element {
             onDeleteRow={openDeleteConfirm}
             onDeleteDay={openDeleteDayConfirm}
             onFilterChange={(filter: any) => currentPageContent.setActiveFilter(filter)}
-            onSearchChange={currentPageContent.setSearchQuery}
+            
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}

@@ -71,7 +71,7 @@ function DayDefaultSettingsModal({
         <div className="mb-5 flex items-center justify-between">
           <h3 className="text-xl font-bold text-primary">Giờ mặc định theo thứ</h3>
           <button
-            className="flex h-6 w-8 items-center justify-center rounded-full border border-[#d5dde0] bg-white/75 text-[#5b6669] transition-colors hover:bg-[#e8f4f7] hover:text-[#0f5d6b]"
+            className="flex h-6 w-8 items-center justify-center rounded-full border border-outline-variant bg-white/75 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
             type="button"
             onClick={onClose}
           >
@@ -82,7 +82,7 @@ function DayDefaultSettingsModal({
         {!isFormOpen ? (
           <div className="space-y-4">
             <button
-              className="w-full rounded-xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 text-sm font-semibold text-[#0f5d6b] transition-all hover:bg-[#dff0f4] active:scale-95"
+              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-on-primary transition-all hover:bg-primary-container active:scale-95"
               type="button"
               onClick={onOpenAddSettingForm}
             >
@@ -124,7 +124,7 @@ function DayDefaultSettingsModal({
                               <p className="text-xs text-on-surface-variant">{setting.slot}</p>
                               <div className="flex gap-1">
                                 <button
-                                  className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#d8e7ea] bg-[#eef7f9] text-[#4d6f77] transition-colors hover:bg-[#dff0f4] hover:text-[#0f5d6b]"
+                                  className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-outline-variant bg-white/85 text-on-surface transition-colors hover:bg-surface-container hover:text-on-surface"
                                   type="button"
                                   onClick={() => onOpenEditSettingForm(setting.id)}
                                 >
@@ -132,7 +132,7 @@ function DayDefaultSettingsModal({
                                 </button>
                                 <button
                                   aria-label="Xóa giờ mặc định"
-                                  className="inline-flex h-7 w-9 items-center justify-center rounded-lg border border-[#f1dede] bg-[#fdf3f3] text-[#b45a5a] transition-colors hover:bg-[#f9e3e3] hover:text-[#a63737]"
+                                  className="inline-flex h-7 w-9 items-center justify-center rounded-lg bg-primary text-on-primary"
                                   type="button"
                                   onClick={() => onDeleteDefaultSetting(setting.id)}
                                 >
@@ -217,14 +217,14 @@ function DayDefaultSettingsModal({
 
             <div className="flex gap-3 pt-2">
               <button
-                className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
+                className="flex-1 rounded-2xl border border-outline-variant bg-white/85 py-3 font-semibold text-on-surface transition-all hover:bg-surface-container active:scale-95"
                 type="button"
                 onClick={onCloseForm}
               >
                 Hủy
               </button>
               <button
-                className="flex-1 rounded-2xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 font-semibold text-[#0f5d6b] shadow-sm transition-all hover:bg-[#dff0f4] active:scale-95"
+                className="flex-1 rounded-2xl bg-primary py-3 font-semibold text-on-primary shadow-sm transition-all hover:bg-primary-container active:scale-95"
                 type="submit"
               >
                 {editingSettingId ? "Cập nhật" : "Lưu lại"}

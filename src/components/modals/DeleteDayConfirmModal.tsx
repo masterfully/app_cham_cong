@@ -49,18 +49,10 @@ function DeleteDayConfirmModal({ isOpen, summary, onClose, onConfirm }: DeleteDa
         ) : null}
 
         <div className="flex gap-3">
-          <button
-            className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
-            type="button"
-            onClick={onClose}
-          >
+          <button className="btn btn-ghost flex-1" type="button" onClick={onClose}>
             Hủy
           </button>
-          <button
-            className="flex-1 rounded-2xl border border-[#efc6c6] bg-[#fce8e8] py-3 font-semibold text-[#a63737] transition-all hover:bg-[#f9dede] active:scale-95"
-            type="button"
-            onClick={onConfirm}
-          >
+          <button className="btn btn-primary flex-1" type="button" onClick={onConfirm}>
             Xóa
           </button>
         </div>

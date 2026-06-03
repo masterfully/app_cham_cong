@@ -14,8 +14,8 @@ function ToastPanel({ toastState }: ToastPanelProps): JSX.Element | null {
       <div
         className={`toast-panel rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-lg ${
           toastState.tone === "error"
-            ? "border border-[#d28b8b] bg-[#6f2d2d] text-[#fff1f1]"
-            : "border border-[#2a5560] bg-[#133e48] text-[#eaf6f8]"
+            ? "border border-[#e86aa3] bg-[#b00563] text-[#fff0f6]"
+            : "border border-[#7b1145] bg-[#3b0022] text-[#ffeef8]"
         }`}
       >
         {toastState.message}

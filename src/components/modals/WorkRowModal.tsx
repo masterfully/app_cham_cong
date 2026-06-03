@@ -226,17 +226,10 @@ function WorkRowModal({
           </div>
 
           <div className="flex gap-3 pt-4">
-            <button
-              className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-4 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
-              type="button"
-              onClick={onClose}
-            >
+            <button className="btn btn-ghost flex-1" type="button" onClick={onClose}>
               Hủy
             </button>
-            <button
-              className="flex-1 rounded-2xl border border-[#9ec7cf] bg-[#e7f4f7] py-4 font-semibold text-[#0f5d6b] shadow-sm transition-all hover:bg-[#dff0f4] active:scale-95"
-              type="submit"
-            >
+            <button className="btn btn-primary flex-1" type="submit">
               {editingRowId ? "Cập nhật" : "Lưu lại"}
             </button>
           </div>

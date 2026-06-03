@@ -76,18 +76,10 @@ function ExportMonthModal({ isOpen, monthValue, onMonthChange, onCancel, onConti
           <p className="ml-1 text-[11px] text-on-surface-variant">Đang chọn: Tháng {Number(selectedMonth)}/{selectedYear}</p>
         </div>
         <div className="flex gap-3">
-          <button
-            className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95"
-            type="button"
-            onClick={onCancel}
-          >
+          <button className="btn btn-ghost flex-1" type="button" onClick={onCancel}>
             Hủy
           </button>
-          <button
-            className="flex-1 rounded-2xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 font-semibold text-[#0f5d6b] shadow-sm transition-all hover:bg-[#dff0f4] active:scale-95"
-            type="button"
-            onClick={onContinue}
-          >
+          <button className="btn btn-primary flex-1" type="button" onClick={onContinue}>
             Tiếp tục
           </button>
         </div>

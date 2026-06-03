@@ -1,23 +1,21 @@
 import { useState, useMemo, useCallback } from "react";
 import { WorkRow, FilterType, WorkRowGroup, DayDefaultSetting } from "../types";
 import { isInFilter, getDayNameFromDate } from "../utils/date";
-import { matchesSearch } from "../utils/storage";
 
 interface UsePageContentState {
   rows: WorkRow[];
   dayDefaultSettings: DayDefaultSetting[];
   activeFilter: FilterType;
-  searchQuery: string;
 }
 
 export function usePageContent(state: UsePageContentState) {
   const [activeFilter, setActiveFilter] = useState<FilterType>(state.activeFilter);
-  const [searchQuery, setSearchQuery] = useState(state.searchQuery);
+  // search removed — page content will rely only on filters
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
 
   const visibleRows = useMemo(() => {
-    return state.rows.filter((row) => isInFilter(row.date, activeFilter) && matchesSearch(row, searchQuery));
-  }, [state.rows, activeFilter, searchQuery]);
+    return state.rows.filter((row) => isInFilter(row.date, activeFilter));
+  }, [state.rows, activeFilter]);
 
   const groupedVisibleRows = useMemo<WorkRowGroup[]>(() => {
     const groupMap = new Map<string, WorkRow[]>();
@@ -70,8 +68,6 @@ export function usePageContent(state: UsePageContentState) {
     selectedRows,
     activeFilter,
     setActiveFilter,
-    searchQuery,
-    setSearchQuery,
     expandedDates,
     setExpandedDates,
     toggleGroup

@@ -54,7 +54,7 @@ function ExportConfirmModal({ isOpen, isExporting, monthLabel, summary, onCancel
         ) : null}
         <div className="flex gap-3">
           <button
-            className="flex-1 rounded-2xl border border-[#d5dde0] bg-white/85 py-3 font-semibold text-[#3f484b] transition-all hover:bg-[#f1f4f5] active:scale-95 disabled:opacity-60"
+            className="flex-1 rounded-2xl border border-outline-variant bg-white/85 py-3 font-semibold text-on-surface transition-all hover:bg-surface-container active:scale-95 disabled:opacity-60"
             disabled={isExporting}
             type="button"
             onClick={onCancel}
@@ -62,7 +62,7 @@ function ExportConfirmModal({ isOpen, isExporting, monthLabel, summary, onCancel
             Hủy
           </button>
           <button
-            className="flex-1 rounded-2xl border border-[#9ec7cf] bg-[#e7f4f7] py-3 font-semibold text-[#0f5d6b] shadow-sm transition-all hover:bg-[#dff0f4] active:scale-95 disabled:opacity-60"
+            className="flex-1 rounded-2xl bg-primary py-3 font-semibold text-on-primary shadow-sm transition-all hover:bg-primary-container active:scale-95 disabled:opacity-60"
             disabled={isExporting}
             type="button"
             onClick={onConfirm}
