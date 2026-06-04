@@ -185,6 +185,8 @@ function WorkRowModal({
                         <TimeWheelInput
                           id="formStartHourWheel"
                           value={formStartHour}
+                          showArrows
+                          milestones={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
                           onChange={(hour) => onStartHourChange(hour)}
                         />
                         <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
@@ -204,6 +206,8 @@ function WorkRowModal({
                         <TimeWheelInput
                           id="formEndHourWheel"
                           value={formEndHour}
+                          showArrows
+                          milestones={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
                           onChange={(hour) => onEndHourChange(hour)}
                         />
                         <span className="px-1 text-sm font-black text-on-surface-variant">:</span>

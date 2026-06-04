@@ -185,6 +185,8 @@ function DayDefaultSettingsModal({
                       <TimeWheelInput
                         id="settingFormStartHourWheel"
                         value={settingFormStartHour}
+                        showArrows
+                        milestones={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
                         onChange={(hour) => onSettingFormStartHourChange(hour)}
                       />
                       <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
@@ -204,6 +206,8 @@ function DayDefaultSettingsModal({
                       <TimeWheelInput
                         id="settingFormEndHourWheel"
                         value={settingFormEndHour}
+                        showArrows
+                        milestones={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
                         onChange={(hour) => onSettingFormEndHourChange(hour)}
                       />
                       <span className="px-1 text-sm font-black text-on-surface-variant">:</span>
