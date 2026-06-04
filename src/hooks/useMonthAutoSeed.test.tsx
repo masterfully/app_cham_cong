@@ -6,14 +6,12 @@ import { test, expect } from "vitest";
 import useMonthAutoSeed from "./useMonthAutoSeed";
 import type { WorkRow, DayDefaultSetting } from "../types";
 
-function Host(props: { initialRows?: WorkRow[]; dayDefaults?: DayDefaultSetting[]; goldDefaults?: DayDefaultSetting[]; showToast?: (m: string) => void; force?: boolean }) {
+function Host(props: { initialRows?: WorkRow[]; dayDefaults?: DayDefaultSetting[]; showToast?: (m: string) => void; force?: boolean }) {
   const [rows, setRows] = useState<WorkRow[]>(props.initialRows ?? []);
-  const [goldRows, setGoldRows] = useState<WorkRow[]>([]);
-  useMonthAutoSeed({ rows, setRows, dayDefaultSettings: props.dayDefaults ?? [], goldRows, setGoldRows, goldDayDefaultSettings: props.goldDefaults ?? [], showToast: props.showToast ?? (() => {}), forceSeedMonth: props.force ?? false });
+  useMonthAutoSeed({ rows, setRows, dayDefaultSettings: props.dayDefaults ?? [], showToast: props.showToast ?? (() => {}), forceSeedMonth: props.force ?? false });
   return (
     <div>
       <span data-testid="main-count">{rows.length}</span>
-      <span data-testid="gold-count">{goldRows.length}</span>
     </div>
   );
 }

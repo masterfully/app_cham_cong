@@ -143,7 +143,7 @@ function App(): JSX.Element {
 
   // persist data and extracted behaviors
   usePersistData({ rows, dayDefaultSettings, goldRows, goldDayDefaultSettings });
-  useMonthAutoSeed({ rows, setRows, dayDefaultSettings, goldRows, setGoldRows, goldDayDefaultSettings, showToast });
+  useMonthAutoSeed({ rows, setRows, dayDefaultSettings, showToast });
   useModalEscape(isModalOpen, () => setIsModalOpen(false));
 
   const visibleRows = useMemo(() => {
