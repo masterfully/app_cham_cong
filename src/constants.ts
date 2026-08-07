@@ -24,8 +24,7 @@ export const DAY_NAME_ALIASES: Record<string, string> = {
 
 export const FILTERS: Array<{ key: FilterType; label: string }> = [
   { key: "all", label: "Tất cả" },
-  { key: "week", label: "Tuần này" },
-  { key: "month", label: "Tháng này" }
+  { key: "week", label: "Tuần này" }
 ];
 
 export const DEFAULT_SLOT_PARTS: SlotParts = {

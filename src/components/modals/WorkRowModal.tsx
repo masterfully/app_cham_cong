@@ -18,6 +18,9 @@ type WorkRowModalProps = {
   dayDefaultSettingsForFormDay: DayDefaultSetting[];
   selectedDefaultSettingIndices: Set<number>;
   onClose: () => void;
+  onGenerateMonth: () => void;
+  canRevertMonth: boolean;
+  onRevertMonth: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onModeChange: (mode: "default" | "custom") => void;
   onDateChange: (value: string) => void;
@@ -42,6 +45,9 @@ function WorkRowModal({
   dayDefaultSettingsForFormDay,
   selectedDefaultSettingIndices,
   onClose,
+  onGenerateMonth,
+  canRevertMonth,
+  onRevertMonth,
   onSubmit,
   onModeChange,
   onDateChange,
@@ -72,13 +78,37 @@ function WorkRowModal({
       <div className="modal-panel w-full max-w-md rounded-t-[2rem] border-t border-white/20 bg-surface p-6 shadow-2xl sm:rounded-3xl">
         <div className="mx-auto mb-6 h-1.5 w-12 rounded-full bg-surface-variant sm:hidden"></div>
         <div className="mb-6 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-primary">{editingRowId ? "Chỉnh sửa dòng" : "Thêm dòng mới"}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xl font-bold text-primary">{editingRowId ? "Chỉnh sửa dòng" : "Thêm dòng mới"}</h3>
+            {!editingRowId && !canRevertMonth ? (
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/15 active:scale-95"
+                type="button"
+                aria-label="Tự động tạo dữ liệu cho tháng hiện tại"
+                title="Tự động tạo dữ liệu cho tháng hiện tại"
+                onClick={onGenerateMonth}
+              >
+                <span className="material-symbols-outlined text-[18px] leading-none">auto_awesome</span>
+              </button>
+            ) : null}
+            {canRevertMonth ? (
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-red-400/40 bg-red-50 text-red-600 transition-colors hover:bg-red-100 active:scale-95"
+                type="button"
+                aria-label="Hoàn tác tự động tạo"
+                title="Hoàn tác tự động tạo"
+                onClick={onRevertMonth}
+              >
+                <span className="material-symbols-outlined text-[18px] leading-none">undo</span>
+              </button>
+            ) : null}
+          </div>
           <button
-            className="flex h-6 w-8 items-center justify-center rounded-full border border-[#d5dde0] bg-white/75 text-[#5b6669] transition-colors hover:bg-[#e8f4f7] hover:text-[#0f5d6b]"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#d5dde0] bg-white/75 text-[#5b6669] transition-colors hover:bg-[#e8f4f7] hover:text-[#0f5d6b]"
             type="button"
             onClick={onClose}
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span className="material-symbols-outlined text-[18px] leading-none">close</span>
           </button>
         </div>
 

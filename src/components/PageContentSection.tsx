@@ -26,6 +26,8 @@ interface PageContentSectionProps {
   onAddRow: () => void;
   onDeleteCheckedRows: () => void;
   selectedRowsCount: number;
+  sortAscending: boolean;
+  onToggleSort: () => void;
 }
 
 function formatMonthOption(value: string): string {
@@ -57,7 +59,9 @@ export default function PageContentSection({
   onSelectMonth,
   onAddRow,
   onDeleteCheckedRows,
-  selectedRowsCount
+  selectedRowsCount,
+  sortAscending,
+  onToggleSort
 }: PageContentSectionProps): JSX.Element {
   const [isMonthMenuOpen, setIsMonthMenuOpen] = useState(false);
 
@@ -144,7 +148,18 @@ export default function PageContentSection({
 
       <section className="space-y-3">
         <div className="mb-2 flex items-center justify-between px-2">
-          <h2 className="text-xs font-black uppercase tracking-wider text-outline">{title}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-black uppercase tracking-wider text-outline">{title}</h2>
+            <button
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-on-surface-variant transition-colors hover:bg-surface-container"
+              type="button"
+              aria-label={sortAscending ? "Sắp xếp mới nhất trước" : "Sắp xếp cũ nhất trước"}
+              title={sortAscending ? "Sắp xếp mới nhất trước" : "Sắp xếp cũ nhất trước"}
+              onClick={onToggleSort}
+            >
+              <span className="material-symbols-outlined text-[16px] leading-none">swap_vert</span>
+            </button>
+          </div>
           <span className="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">
             {visibleRowsCount} dòng
           </span>

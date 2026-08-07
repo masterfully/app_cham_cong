@@ -17,6 +17,8 @@ import DeleteRowConfirmModal from "./components/modals/DeleteRowConfirmModal";
 import DeleteCheckedRowsConfirmModal from "./components/modals/DeleteCheckedRowsConfirmModal";
 import DeleteDayConfirmModal from "./components/modals/DeleteDayConfirmModal";
 import DeleteSettingConfirmModal from "./components/modals/DeleteSettingConfirmModal";
+import GenerateMonthConfirmModal from "./components/modals/GenerateMonthConfirmModal";
+import RevertGenerateConfirmModal from "./components/modals/RevertGenerateConfirmModal";
 import DayDefaultSettingsModal from "./components/modals/DayDefaultSettingsModal";
 import ExportConfirmModal from "./components/modals/ExportConfirmModal";
 import ExportMonthModal from "./components/modals/ExportMonthModal";
@@ -33,7 +35,7 @@ import { useExportWorkflow } from "./hooks/useExportWorkflow";
 import { useWorkRowForm } from "./hooks/useWorkRowForm";
 import { useSettingsForm } from "./hooks/useSettingsForm";
 import { loadGoldDayDefaultSettings, loadGoldRows } from "./utils/goldStorage";
-import useMonthAutoSeed from "./hooks/useMonthAutoSeed";
+import useMonthAutoSeed, { generateMonthRows } from "./hooks/useMonthAutoSeed";
 import usePersistData from "./hooks/usePersistData";
 import useModalEscape from "./hooks/useModalEscape";
 
@@ -43,23 +45,23 @@ function App(): JSX.Element {
   // Main page state
   const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
   const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
-  const [mainSelectedMonth, setMainSelectedMonth] = useState<string | null>(null);
+  const [mainSelectedMonth, setMainSelectedMonth] = useState<string | null>(getCurrentYearMonth());
   const mainPageContent = usePageContent({
     rows,
     dayDefaultSettings,
-    activeFilter: "all",
+    activeFilter: "month",
     selectedMonth: mainSelectedMonth,
   });
   
   // Gold page state
   const [goldRows, setGoldRows] = useState<WorkRow[]>(() => loadGoldRows());
   const [goldDayDefaultSettings, setGoldDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadGoldDayDefaultSettings());
-  const [goldSelectedMonth, setGoldSelectedMonth] = useState<string | null>(null);
+  const [goldSelectedMonth, setGoldSelectedMonth] = useState<string | null>(getCurrentYearMonth());
   
   const goldPageContent = usePageContent({
     rows: goldRows,
     dayDefaultSettings: goldDayDefaultSettings,
-    activeFilter: "all",
+    activeFilter: "month",
     selectedMonth: goldSelectedMonth,
   });
 
@@ -133,6 +135,9 @@ function App(): JSX.Element {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isGenerateMonthConfirmOpen, setIsGenerateMonthConfirmOpen] = useState(false);
+  const [isRevertConfirmOpen, setIsRevertConfirmOpen] = useState(false);
+  const [lastGeneratedRowIds, setLastGeneratedRowIds] = useState<string[]>([]);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
   const [pendingDeleteDayDate, setPendingDeleteDayDate] = useState<string | null>(null);
   const [isDeleteCheckedRowsModalOpen, setIsDeleteCheckedRowsModalOpen] = useState(false);
@@ -405,6 +410,58 @@ function App(): JSX.Element {
     setIsSettingsModalOpen(true);
     setExpandedSettingDays(new Set());
     closeSettingsFormHook();
+  }
+
+  function handleGenerateCurrentMonth(): void {
+    const today = new Date();
+    const year = today.getFullYear();
+    const monthIndex = today.getMonth();
+    const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
+
+    if (currentRows.some((row) => row.date.startsWith(monthPrefix))) {
+      showToast("Tháng hiện tại đã có dòng. Không tạo thêm.", "error");
+      return;
+    }
+
+    setIsGenerateMonthConfirmOpen(true);
+  }
+
+  function confirmGenerateCurrentMonth(): void {
+    setIsGenerateMonthConfirmOpen(false);
+    closeSettingsFormHook();
+
+    const today = new Date();
+    const year = today.getFullYear();
+    const monthIndex = today.getMonth();
+
+    const generated = generateMonthRows(currentDayDefaultSettings, year, monthIndex);
+    if (generated.length === 0) {
+      showToast("Không có dòng nào để tạo.", "error");
+      return;
+    }
+
+    setCurrentRows((previousRows) => [...generated, ...previousRows]);
+    setLastGeneratedRowIds(generated.map((row) => row.id));
+    showToast(`Đã tạo ${generated.length} dòng cho tháng hiện tại.`, "success");
+  }
+
+  function revertGeneratedRows(): void {
+    if (lastGeneratedRowIds.length === 0) {
+      return;
+    }
+
+    setIsRevertConfirmOpen(true);
+  }
+
+  function confirmRevertGeneratedRows(): void {
+    setIsRevertConfirmOpen(false);
+
+    const generatedSet = new Set(lastGeneratedRowIds);
+    const stillPresent = currentRows.filter((row) => generatedSet.has(row.id) && row.checked).map((row) => row.id);
+
+    setCurrentRows((previousRows) => previousRows.filter((row) => !generatedSet.has(row.id) || row.checked));
+    setLastGeneratedRowIds(stillPresent);
+    showToast("Đã hoàn tác các dòng được tạo chưa chọn.", "success");
   }
 
   function openExportMonthModal(): void {
@@ -806,6 +863,8 @@ function App(): JSX.Element {
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}
+            sortAscending={currentPageContent.sortAscending}
+            onToggleSort={currentPageContent.toggleSort}
           />
           <BottomSummaryBar
             title="Tổng giờ làm đã chọn"
@@ -848,6 +907,8 @@ function App(): JSX.Element {
             onAddRow={openModal}
             onDeleteCheckedRows={openDeleteCheckedRowsConfirm}
             selectedRowsCount={selectedRows.length}
+            sortAscending={currentPageContent.sortAscending}
+            onToggleSort={currentPageContent.toggleSort}
           />
           <BottomSummaryBar
             title="Tổng giờ dạy cho Gold đã chọn"
@@ -919,6 +980,9 @@ function App(): JSX.Element {
         dayDefaultSettingsForFormDay={dayDefaultSettingsForFormDay}
         selectedDefaultSettingIndices={selectedDefaultSettingIndices}
         onClose={closeModal}
+        onGenerateMonth={handleGenerateCurrentMonth}
+        canRevertMonth={lastGeneratedRowIds.some((id) => currentRows.some((row) => row.id === id))}
+        onRevertMonth={revertGeneratedRows}
         onSubmit={handleSubmitRow}
         onModeChange={setFormMode}
         onDateChange={handleDateChange}
@@ -966,6 +1030,17 @@ function App(): JSX.Element {
         onSettingFormEndMinuteChange={(value) => setSettingFormEndMinute(sanitizeTimeInput(value))}
         onCloseForm={closeSettingsFormHook}
         onSubmitForm={handleSubmitDayDefaultSetting}
+      />
+      <GenerateMonthConfirmModal
+        isOpen={isGenerateMonthConfirmOpen}
+        monthLabel={formatMonthYearLabel(getCurrentYearMonth())}
+        onClose={() => setIsGenerateMonthConfirmOpen(false)}
+        onConfirm={confirmGenerateCurrentMonth}
+      />
+      <RevertGenerateConfirmModal
+        isOpen={isRevertConfirmOpen}
+        onClose={() => setIsRevertConfirmOpen(false)}
+        onConfirm={confirmRevertGeneratedRows}
       />
     </>
   );

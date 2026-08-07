@@ -13,6 +13,7 @@ export function usePageContent(state: UsePageContentState) {
   const [activeFilter, setActiveFilter] = useState<FilterType>(state.activeFilter);
   // search removed — page content will rely only on filters
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
+  const [sortAscending, setSortAscending] = useState(false);
 
   const visibleRows = useMemo(() => {
     if (activeFilter === "month") {
@@ -36,7 +37,10 @@ export function usePageContent(state: UsePageContentState) {
     }
 
     return Array.from(groupMap.entries())
-      .sort((left, right) => right[0].localeCompare(left[0]))
+      .sort((left, right) => {
+        const comparison = left[0].localeCompare(right[0]);
+        return sortAscending ? comparison : -comparison;
+      })
       .map(([date, rowsInDate]) => {
         const totalHours = rowsInDate.reduce((sum, row) => sum + Number(row.hours), 0);
         const checkedCount = rowsInDate.reduce((sum, row) => sum + (row.checked ? 1 : 0), 0);
@@ -50,7 +54,7 @@ export function usePageContent(state: UsePageContentState) {
           totalHours
         };
       });
-  }, [visibleRows]);
+  }, [visibleRows, sortAscending]);
 
   const selectedRows = useMemo(() => {
     return visibleRows.filter((row) => row.checked);
@@ -68,6 +72,10 @@ export function usePageContent(state: UsePageContentState) {
     });
   }, []);
 
+  const toggleSort = useCallback((): void => {
+    setSortAscending((previous) => !previous);
+  }, []);
+
   return {
     visibleRows,
     groupedVisibleRows,
@@ -76,6 +84,8 @@ export function usePageContent(state: UsePageContentState) {
     setActiveFilter,
     expandedDates,
     setExpandedDates,
-    toggleGroup
+    toggleGroup,
+    sortAscending,
+    toggleSort
   };
 }
