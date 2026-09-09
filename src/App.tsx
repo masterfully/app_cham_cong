@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { DAY_NAME_ALIASES, DAY_NAMES, DEFAULT_SLOT_PARTS } from "./constants";
 import {
   formatDateWithYear,
@@ -8,7 +8,7 @@ import {
   toISODate
 } from "./utils/date";
 import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
-import { createId, getDayNameFromDate, loadDayDefaultSettings, loadRows } from "./utils/storage";
+import { createId, getDayNameFromDate } from "./utils/storage";
 import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
 import { getSettingsForDay, getSelectedDefaultSettings, getTotalHoursForSettings, getRowConflict } from "./utils/appHelpers";
 import { createCustomRow } from "./utils/rowFactory";
@@ -25,8 +25,8 @@ import ExportMonthModal from "./components/modals/ExportMonthModal";
 import ExportResultModal from "./components/modals/ExportResultModal";
 import WorkRowModal from "./components/modals/WorkRowModal";
 import PageHeader from "./components/ui/PageHeader";
-import ToastPanel from "./components/ui/ToastPanel";
 import BottomSummaryBar from "./components/ui/BottomSummaryBar";
+import ToastPanel from "./components/ui/ToastPanel";
 import PageContentSection from "./components/PageContentSection";
 import { usePageContent } from "./hooks/usePageContent";
 import { useRowSelection } from "./hooks/useRowSelection";
@@ -34,17 +34,19 @@ import { useToast } from "./hooks/useToast";
 import { useExportWorkflow } from "./hooks/useExportWorkflow";
 import { useWorkRowForm } from "./hooks/useWorkRowForm";
 import { useSettingsForm } from "./hooks/useSettingsForm";
-import { loadGoldDayDefaultSettings, loadGoldRows } from "./utils/goldStorage";
 import useMonthAutoSeed, { generateMonthRows } from "./hooks/useMonthAutoSeed";
-import usePersistData from "./hooks/usePersistData";
 import useModalEscape from "./hooks/useModalEscape";
+import useCloudPersistence from "./hooks/useCloudPersistence";
+import LoginScreen from "./components/LoginScreen";
+import { auth } from "./firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 
-function App(): JSX.Element {
+function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   const [currentPage, setCurrentPage] = useState<"main" | "gold">("main");
   
   // Main page state
-  const [rows, setRows] = useState<WorkRow[]>(() => loadRows());
-  const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadDayDefaultSettings());
+  const [rows, setRows] = useState<WorkRow[]>([]);
+  const [dayDefaultSettings, setDayDefaultSettings] = useState<DayDefaultSetting[]>([]);
   const [mainSelectedMonth, setMainSelectedMonth] = useState<string | null>(getCurrentYearMonth());
   const mainPageContent = usePageContent({
     rows,
@@ -54,8 +56,8 @@ function App(): JSX.Element {
   });
   
   // Gold page state
-  const [goldRows, setGoldRows] = useState<WorkRow[]>(() => loadGoldRows());
-  const [goldDayDefaultSettings, setGoldDayDefaultSettings] = useState<DayDefaultSetting[]>(() => loadGoldDayDefaultSettings());
+  const [goldRows, setGoldRows] = useState<WorkRow[]>([]);
+  const [goldDayDefaultSettings, setGoldDayDefaultSettings] = useState<DayDefaultSetting[]>([]);
   const [goldSelectedMonth, setGoldSelectedMonth] = useState<string | null>(getCurrentYearMonth());
   
   const goldPageContent = usePageContent({
@@ -132,8 +134,20 @@ function App(): JSX.Element {
   const mainSelection = useRowSelection(mainPageContent.visibleRows);
   const goldSelection = useRowSelection(goldPageContent.visibleRows);
   const currentSelection = currentPage === "main" ? mainSelection : goldSelection;
+  const { isCloudLoaded, error: cloudError } = useCloudPersistence({
+    user,
+    rows,
+    dayDefaultSettings,
+    goldRows,
+    goldDayDefaultSettings,
+    setRows,
+    setDayDefaultSettings,
+    setGoldRows,
+    setGoldDayDefaultSettings
+  });
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isGenerateMonthConfirmOpen, setIsGenerateMonthConfirmOpen] = useState(false);
   const [isRevertConfirmOpen, setIsRevertConfirmOpen] = useState(false);
@@ -146,8 +160,7 @@ function App(): JSX.Element {
   const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
   const [isExportResultModalOpen, setIsExportResultModalOpen] = useState(false);
 
-  // persist data and extracted behaviors
-  usePersistData({ rows, dayDefaultSettings, goldRows, goldDayDefaultSettings });
+  // Cloud Firestore is the only persistence layer.
   useMonthAutoSeed({ rows, setRows, dayDefaultSettings, showToast });
   useModalEscape(isModalOpen, () => setIsModalOpen(false));
 
@@ -170,6 +183,13 @@ function App(): JSX.Element {
   const totalSelectedHours = useMemo(() => {
     return currentSelection.totalSelectedHours;
   }, [currentSelection.totalSelectedHours]);
+
+  useEffect(() => {
+    localStorage.removeItem("app-cham-cong-rows-v1");
+    localStorage.removeItem("app-cham-cong-day-defaults-v1");
+    localStorage.removeItem("goldRows");
+    localStorage.removeItem("goldDayDefaultSettings");
+  }, []);
 
   const pendingDeleteRow = useMemo(() => {
     if (!pendingDeleteRowId) {
@@ -836,6 +856,10 @@ function App(): JSX.Element {
     showToast("Thêm dòng thành công", "success");
   }
 
+  if (!isCloudLoaded) {
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm font-semibold text-primary">{cloudError ?? "Đang tải dữ liệu..."}</div>;
+  }
+
   return (
     <>
       {currentPage === "main" ? (
@@ -1044,6 +1068,28 @@ function App(): JSX.Element {
       />
     </>
   );
+}
+
+function App(): JSX.Element {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setIsAuthLoading(false);
+    });
+  }, []);
+
+  if (isAuthLoading) {
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm font-semibold text-primary">Đang kiểm tra đăng nhập...</div>;
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedApp user={user} />;
 }
 
 export default App;
