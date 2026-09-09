@@ -6,6 +6,7 @@ import type { DayDefaultSetting, WorkRow } from "../types";
 
 type CloudData = {
   rows?: WorkRow[];
+  generatedRowIds?: string[];
   dayDefaultSettings?: DayDefaultSetting[];
   goldRows?: WorkRow[];
   goldDayDefaultSettings?: DayDefaultSetting[];
@@ -14,6 +15,7 @@ type CloudData = {
 type UseCloudPersistenceOptions = CloudData & {
   user: User | null;
   setRows: (rows: WorkRow[]) => void;
+  setGeneratedRowIds: (ids: string[]) => void;
   setDayDefaultSettings: (settings: DayDefaultSetting[]) => void;
   setGoldRows: (rows: WorkRow[]) => void;
   setGoldDayDefaultSettings: (settings: DayDefaultSetting[]) => void;
@@ -23,10 +25,12 @@ export function useCloudPersistence(options: UseCloudPersistenceOptions): { isCl
   const {
     user,
     rows,
+    generatedRowIds,
     dayDefaultSettings,
     goldRows,
     goldDayDefaultSettings,
     setRows,
+    setGeneratedRowIds,
     setDayDefaultSettings,
     setGoldRows,
     setGoldDayDefaultSettings
@@ -58,12 +62,14 @@ export function useCloudPersistence(options: UseCloudPersistenceOptions): { isCl
         if (snapshot.exists()) {
           const cloudData = snapshot.data() as CloudData;
           if (Array.isArray(cloudData.rows)) setRows(cloudData.rows);
+          if (Array.isArray(cloudData.generatedRowIds)) setGeneratedRowIds(cloudData.generatedRowIds);
           if (Array.isArray(cloudData.dayDefaultSettings)) setDayDefaultSettings(cloudData.dayDefaultSettings);
           if (Array.isArray(cloudData.goldRows)) setGoldRows(cloudData.goldRows);
           if (Array.isArray(cloudData.goldDayDefaultSettings)) setGoldDayDefaultSettings(cloudData.goldDayDefaultSettings);
         } else {
           await setDoc(nextDocumentRef, {
             rows: [],
+                        generatedRowIds: [],
             dayDefaultSettings: [],
             goldRows: [],
             goldDayDefaultSettings: []
@@ -87,7 +93,19 @@ export function useCloudPersistence(options: UseCloudPersistenceOptions): { isCl
     return () => {
       isCurrent = false;
     };
-  }, [user, setDayDefaultSettings, setGoldDayDefaultSettings, setGoldRows, setRows]);
+  }, [user, setDayDefaultSettings, setGeneratedRowIds, setGoldDayDefaultSettings, setGoldRows, setRows]);
+
+  useEffect(() => {
+    const currentDocumentRef = documentRef.current;
+    if (!isCloudLoaded || !isCloudAvailable || !currentDocumentRef) {
+      return;
+    }
+
+    void setDoc(currentDocumentRef, { generatedRowIds }, { merge: true }).catch((saveError) => {
+      console.error("Không thể lưu trạng thái tạo tháng lên Firestore", saveError);
+      setError("Không thể lưu dữ liệu đám mây.");
+    });
+  }, [generatedRowIds, isCloudAvailable, isCloudLoaded]);
 
   useEffect(() => {
     const currentDocumentRef = documentRef.current;

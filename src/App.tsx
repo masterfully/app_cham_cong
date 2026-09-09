@@ -134,13 +134,16 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   const mainSelection = useRowSelection(mainPageContent.visibleRows);
   const goldSelection = useRowSelection(goldPageContent.visibleRows);
   const currentSelection = currentPage === "main" ? mainSelection : goldSelection;
+  const [lastGeneratedRowIds, setLastGeneratedRowIds] = useState<string[]>([]);
   const { isCloudLoaded, error: cloudError } = useCloudPersistence({
     user,
     rows,
+    generatedRowIds: lastGeneratedRowIds,
     dayDefaultSettings,
     goldRows,
     goldDayDefaultSettings,
     setRows,
+    setGeneratedRowIds: setLastGeneratedRowIds,
     setDayDefaultSettings,
     setGoldRows,
     setGoldDayDefaultSettings
@@ -151,7 +154,6 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isGenerateMonthConfirmOpen, setIsGenerateMonthConfirmOpen] = useState(false);
   const [isRevertConfirmOpen, setIsRevertConfirmOpen] = useState(false);
-  const [lastGeneratedRowIds, setLastGeneratedRowIds] = useState<string[]>([]);
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
   const [pendingDeleteDayDate, setPendingDeleteDayDate] = useState<string | null>(null);
   const [isDeleteCheckedRowsModalOpen, setIsDeleteCheckedRowsModalOpen] = useState(false);
