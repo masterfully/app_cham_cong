@@ -184,13 +184,6 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
     return currentSelection.totalSelectedHours;
   }, [currentSelection.totalSelectedHours]);
 
-  useEffect(() => {
-    localStorage.removeItem("app-cham-cong-rows-v1");
-    localStorage.removeItem("app-cham-cong-day-defaults-v1");
-    localStorage.removeItem("goldRows");
-    localStorage.removeItem("goldDayDefaultSettings");
-  }, []);
-
   const pendingDeleteRow = useMemo(() => {
     if (!pendingDeleteRowId) {
       return null;

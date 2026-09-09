@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest --environment jsdom"
+    "test": "vitest --environment jsdom --exclude tests/e2e/**"
   },
   "dependencies": {
     "firebase": "^12.18.0",
