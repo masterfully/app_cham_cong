@@ -45,7 +45,7 @@ function TimeWheelInput({
   options = DEFAULT_OPTIONS,
   onChange,
   showArrows = false,
-  milestones = ["00", "15", "30"]
+  milestones = ["00", "15", "30", "45"]
 }: TimeWheelInputProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const selectedValue = useMemo(() => normalizeValue(value, options), [value, options]);
