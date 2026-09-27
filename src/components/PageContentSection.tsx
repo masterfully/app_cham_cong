@@ -66,7 +66,7 @@ export default function PageContentSection({
   const [isMonthMenuOpen, setIsMonthMenuOpen] = useState(false);
 
   return (
-    <main className="mx-auto max-w-lg px-4 pb-44 pt-20">
+    <main className="mx-auto w-full max-w-lg px-4 pb-44 pt-20 md:max-w-5xl md:px-8 lg:max-w-6xl lg:px-10">
       <section className="mb-6 space-y-4">
         {/* Search removed per request */}
 
