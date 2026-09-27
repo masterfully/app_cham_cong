@@ -67,16 +67,16 @@ export default function PageContentSection({
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 pb-44 pt-20 md:max-w-5xl md:px-8 lg:max-w-6xl lg:px-10">
-      <section className="mb-6 space-y-4">
+      <section className="space-y-2">
         {/* Search removed per request */}
 
-        <div className="no-scrollbar flex flex-nowrap gap-1.5 overflow-x-auto pb-1">
+        <div className="no-scrollbar flex flex-nowrap gap-1.5 overflow-x-auto py-0.5">
           {FILTERS.map((filter) => {
             const isActive = activeFilter === filter.key;
             return (
               <button
                 key={filter.key}
-                className={`flex-none min-h-8 whitespace-nowrap rounded-full px-2 py-1.5 text-sm leading-none transition-all active:scale-95 ${
+                className={`flex-none min-h-7 whitespace-nowrap rounded-full px-2 py-1 text-sm leading-none transition-all active:scale-95 ${
                   isActive
                     ? "border border-[#f3a6d1] bg-[#fff1f7] font-semibold text-[#7b0b4f] shadow-sm"
                     : "border border-[#f0c7d9] bg-[#fff7fb] font-medium text-[#6b4b5b] hover:bg-[#fff0f6]"
@@ -92,7 +92,7 @@ export default function PageContentSection({
             );
           })}
           <button
-            className="flex flex-none min-h-8 items-center gap-1 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-2 py-1.5 text-sm font-semibold leading-none text-primary shadow-sm transition-all hover:bg-primary/15 active:scale-95"
+            className="flex flex-none min-h-7 items-center gap-1 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-sm font-semibold leading-none text-primary shadow-sm transition-all hover:bg-primary/15 active:scale-95"
             type="button"
             onClick={() => setIsMonthMenuOpen((previous) => !previous)}
           >
@@ -135,7 +135,9 @@ export default function PageContentSection({
           ) : null}
         </div>
 
-        <div className="flex gap-2">
+      </section>
+
+      <div className="sticky top-16 z-30 -mx-4 mb-2 flex gap-2 border-b border-outline-variant/20 bg-background/95 px-4 py-2 backdrop-blur-md md:-mx-8 md:px-8 lg:-mx-10 lg:px-10">
           <button className="btn btn-primary flex-1" type="button" onClick={onAddRow}>
             <span className="material-symbols-outlined mr-1 align-middle">add</span>
             <span className="align-middle">Thêm dòng mới</span>
@@ -143,8 +145,7 @@ export default function PageContentSection({
           <button className="btn btn-ghost btn-icon" type="button" disabled={selectedRowsCount === 0} onClick={onDeleteCheckedRows} aria-label="Xóa đã chọn">
             <span className="material-symbols-outlined">delete</span>
           </button>
-        </div>
-      </section>
+      </div>
 
       <section className="space-y-3">
         <div className="mb-2 flex items-center justify-between px-2">
