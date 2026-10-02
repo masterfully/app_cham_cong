@@ -8,6 +8,7 @@ import {
   toISODate
 } from "./utils/date";
 import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
+import { buildExportTableImage, convertImageToPng } from "./utils/exportImage";
 import { createId, getDayNameFromDate } from "./utils/storage";
 import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
 import { getSettingsForDay, getSelectedDefaultSettings, getTotalHoursForSettings, getRowConflict } from "./utils/appHelpers";
@@ -23,6 +24,7 @@ import DayDefaultSettingsModal from "./components/modals/DayDefaultSettingsModal
 import ExportConfirmModal from "./components/modals/ExportConfirmModal";
 import ExportMonthModal from "./components/modals/ExportMonthModal";
 import ExportResultModal from "./components/modals/ExportResultModal";
+import AIChatModal from "./components/modals/AIChatModal";
 import WorkRowModal from "./components/modals/WorkRowModal";
 import PageHeader from "./components/ui/PageHeader";
 import BottomSummaryBar from "./components/ui/BottomSummaryBar";
@@ -161,6 +163,9 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   const [isExportMonthModalOpen, setIsExportMonthModalOpen] = useState(false);
   const [isExportConfirmModalOpen, setIsExportConfirmModalOpen] = useState(false);
   const [isExportResultModalOpen, setIsExportResultModalOpen] = useState(false);
+  const [exportImageUrl, setExportImageUrl] = useState("");
+  const [exportImagePngUrl, setExportImagePngUrl] = useState("");
+  const [isAIChatModalOpen, setIsAIChatModalOpen] = useState(false);
 
   // Cloud Firestore is the only persistence layer.
   useMonthAutoSeed({ rows, setRows, dayDefaultSettings, showToast });
@@ -535,6 +540,13 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
       });
 
       setExportPublicUrl(publicUrl);
+      const imageRows = pendingExportSummary.main.dailyRows.length > 0
+        ? pendingExportSummary.main.dailyRows
+        : pendingExportSummary.gold.dailyRows;
+      const imageUrl = buildExportTableImage(imageRows);
+      const pngUrl = await convertImageToPng(imageUrl);
+      setExportImageUrl(imageUrl);
+      setExportImagePngUrl(pngUrl);
       setIsExportConfirmModalOpen(false);
       setIsExportResultModalOpen(true);
       setPendingExportMonthValue(null);
@@ -550,6 +562,8 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   function closeExportResultModal(): void {
     setIsExportResultModalOpen(false);
     setExportPublicUrl("");
+    setExportImageUrl("");
+    setExportImagePngUrl("");
   }
 
   async function handleCopyExportUrl(): Promise<void> {
@@ -859,7 +873,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
     <>
       {currentPage === "main" ? (
         <>
-          <PageHeader title="Quản lý giờ làm" onExport={openExportMonthModal} onOpenSettings={openSettingsModal} />
+          <PageHeader title="Quản lý giờ làm" onOpenAI={() => setIsAIChatModalOpen(true)} onExport={openExportMonthModal} onOpenSettings={openSettingsModal} />
           <ToastPanel toastState={toastState} />
           <PageContentSection
             title="Bảng chấm công"
@@ -901,6 +915,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
             showBackButton
             backAriaLabel="Quay lại"
             onBack={() => setCurrentPage("main")}
+            onOpenAI={() => setIsAIChatModalOpen(true)}
             onExport={openExportMonthModal}
             onOpenSettings={openSettingsModal}
           />
@@ -985,7 +1000,8 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         onCancel={cancelExportConfirmation}
         onConfirm={confirmExportToGoogleSheet}
       />
-      <ExportResultModal isOpen={isExportResultModalOpen} publicUrl={exportPublicUrl} onClose={closeExportResultModal} onCopy={handleCopyExportUrl} />
+      <ExportResultModal isOpen={isExportResultModalOpen} publicUrl={exportPublicUrl} imageUrl={exportImageUrl} imagePngUrl={exportImagePngUrl} onClose={closeExportResultModal} onCopy={handleCopyExportUrl} />
+      <AIChatModal isOpen={isAIChatModalOpen} onClose={() => setIsAIChatModalOpen(false)} />
       <WorkRowModal
         isOpen={isModalOpen}
         editingRowId={editingRowId}

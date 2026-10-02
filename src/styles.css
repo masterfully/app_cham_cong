@@ -133,6 +133,12 @@ body {
 .btn-primary:hover { background-color: #c22a76; }
 .btn-primary:active { transform: translateY(1px); }
 
+.export-image-download {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+}
+
 .btn-primary-variant {
   background-color: #ffd6ec; /* primary-container */
   color: #6b0631;
