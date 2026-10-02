@@ -10,8 +10,9 @@ function ToastPanel({ toastState }: ToastPanelProps): JSX.Element | null {
   }
 
   return (
-    <div className="fixed right-4 top-[4.5rem] z-[100] max-w-[calc(100vw-2rem)]">
+    <div className={`fixed top-[4.5rem] z-[100] max-w-[calc(100vw-2rem)] ${toastState.tone === "error" ? "left-1/2 -translate-x-1/2" : "right-4"}`}>
       <div
+        role={toastState.tone === "error" ? "alert" : "status"}
         className={`toast-panel rounded-xl px-4 py-2 text-center text-sm font-semibold shadow-lg ${
           toastState.tone === "error"
             ? "border border-[#e86aa3] bg-[#b00563] text-[#fff0f6]"
