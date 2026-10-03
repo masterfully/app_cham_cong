@@ -21,7 +21,8 @@ export function normalizeRow(row: WorkRowInput): WorkRow {
     date: safeDate,
     slot: String(row.slot ?? "").trim(),
     hours: Number.isFinite(safeHours) && safeHours > 0 ? safeHours : 0.5,
-    checked: Boolean(row.checked)
+    checked: Boolean(row.checked),
+    isNoStudent: Boolean(row.isNoStudent)
   };
 }
 

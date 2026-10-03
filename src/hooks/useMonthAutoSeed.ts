@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { DEFAULT_SLOT_PARTS } from "../constants";
 import { toISODate, getDayNameFromDate } from "../utils/date";
 import { createId } from "../utils/storage";
 import { parseSlotParts } from "../utils/time";
@@ -31,20 +30,6 @@ export function generateMonthRows(dayDefaultSettings: DayDefaultSetting[], year:
         if (res.row) {
           generated.push(res.row);
         }
-      }
-    } else {
-      const parts = DEFAULT_SLOT_PARTS;
-      const res = createCustomRow({
-        id: createId(),
-        dayOfWeek: dayName,
-        date,
-        startHour: parts.startHour,
-        startMinute: parts.startMinute,
-        endHour: parts.endHour,
-        endMinute: parts.endMinute
-      });
-      if (res.row) {
-        generated.push(res.row);
       }
     }
   }

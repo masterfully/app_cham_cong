@@ -10,7 +10,7 @@ import {
 import { buildExportSheetRowsForMonth, createGoogleSheetExport } from "./utils/exportSheet";
 import { buildExportTableImage, convertImageToPng } from "./utils/exportImage";
 import { createId, getDayNameFromDate } from "./utils/storage";
-import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
+import { areTimeRangesOverlapping, calculateSlotAndHours, formatHoursAsHourMinute, parseSlotParts, parseSlotRangeInMinutes, sanitizeTimeInput, sortSettingsBySlot } from "./utils/time";
 import { getSettingsForDay, getSelectedDefaultSettings, getTotalHoursForSettings, getRowConflict } from "./utils/appHelpers";
 import { createCustomRow } from "./utils/rowFactory";
 import { DayDefaultSetting, DayDefaultSettingGroup, WorkRow } from "./types";
@@ -91,6 +91,10 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
     mode: formMode,
     editingRowId,
     selectedDefaultSettingIndices,
+    noStudentShiftEnabled,
+    noStudentShiftStart,
+    noStudentShiftEnd,
+    newRowIsNoStudent,
     setDayOfWeek: setFormDayOfWeek,
     setDate: setFormDate,
     setStartHour: setFormStartHour,
@@ -99,6 +103,10 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
     setEndMinute: setFormEndMinute,
     setMode: setFormMode,
     setSelectedDefaultSettingIndices,
+    setNoStudentShiftEnabled,
+    setNoStudentShiftStart,
+    setNoStudentShiftEnd,
+    setNewRowIsNoStudent,
     toggleDefaultSettingIndex,
     toggleAllDefaultSettings,
     resetForm: resetWorkRowForm,
@@ -283,6 +291,20 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
     [formStartHour, formStartMinute, formEndHour, formEndMinute]
   );
 
+  const noStudentShiftParts = useMemo(() => ({
+    start: noStudentShiftStart.split(":"),
+    end: noStudentShiftEnd.split(":")
+  }), [noStudentShiftEnd, noStudentShiftStart]);
+  const noStudentShiftCalculation = useMemo(
+    () => calculateSlotAndHours(
+      noStudentShiftParts.start[0] ?? "",
+      noStudentShiftParts.start[1] ?? "",
+      noStudentShiftParts.end[0] ?? "",
+      noStudentShiftParts.end[1] ?? ""
+    ),
+    [noStudentShiftParts]
+  );
+
   const settingFormSlotCalculation = useMemo(
     () => calculateSlotAndHours(settingFormStartHour, settingFormStartMinute, settingFormEndHour, settingFormEndMinute),
     [settingFormStartHour, settingFormStartMinute, settingFormEndHour, settingFormEndMinute]
@@ -303,12 +325,17 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
   }, [selectedDefaultSettingsForFormDay]);
 
   const formHoursLabel = useMemo(() => {
+    let baseHours: number | null = null;
     if (!editingRowId && formMode === "default") {
-      return selectedDefaultSettingsForFormDay.length > 0 ? formatHoursAsHourMinute(selectedDefaultHours) : "--";
+      baseHours = selectedDefaultSettingsForFormDay.length > 0 ? selectedDefaultHours : null;
+    } else if (formSlotCalculation.isValid) {
+      baseHours = formSlotCalculation.hours;
     }
 
-    return formSlotCalculation.isValid ? formatHoursAsHourMinute(formSlotCalculation.hours) : "--";
-  }, [editingRowId, formMode, formSlotCalculation.hours, formSlotCalculation.isValid, selectedDefaultHours, selectedDefaultSettingsForFormDay.length]);
+    if (baseHours === null) return "--";
+    const extraHours = noStudentShiftEnabled && noStudentShiftCalculation.isValid ? noStudentShiftCalculation.hours : 0;
+    return formatHoursAsHourMinute(baseHours + extraHours);
+  }, [editingRowId, formMode, formSlotCalculation.hours, formSlotCalculation.isValid, noStudentShiftCalculation.hours, noStudentShiftCalculation.isValid, noStudentShiftEnabled, selectedDefaultHours, selectedDefaultSettingsForFormDay.length]);
 
   const groupedDayDefaultSettings = useMemo<DayDefaultSettingGroup[]>(() => {
     const dayIndex = new Map(DAY_NAMES.map((dayName, index) => [dayName, index]));
@@ -372,7 +399,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
 
     const settingsForDay = getSettingsForDay(currentDayDefaultSettings, rowToEdit.dayOfWeek);
     const matchedSettingIndex = settingsForDay.findIndex((setting) => setting.slot === rowToEdit.slot);
-    setFormFromRow(rowId, rowToEdit.dayOfWeek, rowToEdit.date, rowToEdit.slot, matchedSettingIndex);
+    setFormFromRow(rowId, rowToEdit.dayOfWeek, rowToEdit.date, rowToEdit.slot, matchedSettingIndex, rowToEdit.isNoStudent);
     setIsModalOpen(true);
   }
 
@@ -709,6 +736,38 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
       return;
     }
 
+    let noStudentRow: WorkRow | null = null;
+    if (noStudentShiftEnabled) {
+      if (!noStudentShiftCalculation.isValid) {
+        showToast("Vui lòng nhập khung giờ hợp lệ cho ca không có học sinh.", "error");
+        return;
+      }
+      if (formSlotCalculation.isValid) {
+        const workStart = Number(formStartHour) * 60 + Number(formStartMinute);
+        const workEnd = Number(formEndHour) * 60 + Number(formEndMinute);
+        const noStudentStart = Number(noStudentShiftParts.start[0]) * 60 + Number(noStudentShiftParts.start[1]);
+        const noStudentEnd = Number(noStudentShiftParts.end[0]) * 60 + Number(noStudentShiftParts.end[1]);
+        if (noStudentStart < workStart || noStudentEnd > workEnd) {
+          showToast("Ca không có học sinh phải nằm trong khung giờ làm.", "error");
+          return;
+        }
+      }
+      const noStudentResult = createCustomRow({
+        id: createId(),
+        dayOfWeek: formDayOfWeek,
+        date: formDate,
+        startHour: noStudentShiftParts.start[0] ?? "",
+        startMinute: noStudentShiftParts.start[1] ?? "",
+        endHour: noStudentShiftParts.end[0] ?? "",
+        endMinute: noStudentShiftParts.end[1] ?? ""
+      });
+      if (!noStudentResult.row) {
+        showToast(noStudentResult.errorMessage || "Khung giờ ca không có học sinh không hợp lệ.", "error");
+        return;
+      }
+      noStudentRow = { ...noStudentResult.row, isNoStudent: true };
+    }
+
     // Combine rows from both pages for cross-page duplicate validation
     const allRowsAcrossPages = currentPage === "main" ? [...rows, ...goldRows] : [...goldRows, ...rows];
 
@@ -756,7 +815,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         return;
       }
 
-      const newRow = customRowResult.row;
+      const newRow = { ...customRowResult.row, isNoStudent: newRowIsNoStudent };
 
       const conflictType = getRowConflict(allRowsAcrossPages, newRow, newRow.id);
       if (conflictType === "duplicate") {
@@ -769,21 +828,104 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         return;
       }
 
-      setCurrentRows((previousRows) =>
-        previousRows.map((row) => {
-          if (row.id !== editingRowId) {
-            return row;
-          }
+      const existingRow = currentRows.find((row) => row.id === editingRowId);
+      let replacementRows: WorkRow[] = [{ ...newRow, checked: existingRow?.checked ?? false }];
 
-          return {
-            ...row,
-            dayOfWeek: newRow.dayOfWeek,
-            date: newRow.date,
-            slot: newRow.slot,
-            hours: newRow.hours
-          };
-        })
-      );
+      if (noStudentRow) {
+        const workRange = parseSlotRangeInMinutes(newRow.slot);
+        const noStudentRange = parseSlotRangeInMinutes(noStudentRow.slot);
+        if (!workRange || !noStudentRange) {
+          showToast("Không thể tách ca không có học sinh.", "error");
+          return;
+        }
+
+        const isFullShift = noStudentRange.start === workRange.start && noStudentRange.end === workRange.end;
+        if (isFullShift) {
+          replacementRows = [{ ...newRow, checked: existingRow?.checked ?? false, isNoStudent: true }];
+        } else {
+          const segments: WorkRow[] = [];
+          if (workRange.start < noStudentRange.start) {
+            const beforeResult = createCustomRow({
+              id: editingRowId ?? createId(),
+              dayOfWeek: formDayOfWeek,
+              date: formDate,
+              startHour: formStartHour,
+              startMinute: formStartMinute,
+              endHour: noStudentShiftParts.start[0] ?? "",
+              endMinute: noStudentShiftParts.start[1] ?? ""
+            });
+            if (beforeResult.row) segments.push(beforeResult.row);
+          }
+          segments.push(noStudentRow);
+          if (noStudentRange.end < workRange.end) {
+            const afterResult = createCustomRow({
+              id: createId(),
+              dayOfWeek: formDayOfWeek,
+              date: formDate,
+              startHour: noStudentShiftParts.end[0] ?? "",
+              startMinute: noStudentShiftParts.end[1] ?? "",
+              endHour: formEndHour,
+              endMinute: formEndMinute
+            });
+            if (afterResult.row) segments.push(afterResult.row);
+          }
+          replacementRows = segments.map((row) => ({ ...row, checked: existingRow?.checked ?? false }));
+        }
+      }
+
+      const rowsWithoutEditedRow = allRowsAcrossPages.filter((row) => row.id !== editingRowId);
+      for (const replacementRow of replacementRows) {
+        const conflict = getRowConflict(rowsWithoutEditedRow, replacementRow);
+        if (conflict) {
+          showToast("Ca cập nhật bị trùng hoặc chồng giờ với ca khác.", "error");
+          return;
+        }
+      }
+
+      setCurrentRows((previousRows) => {
+        const isConvertingToNormal = Boolean(existingRow?.isNoStudent && !newRowIsNoStudent && replacementRows.length === 1);
+        if (!isConvertingToNormal) {
+          return [...replacementRows, ...previousRows.filter((row) => row.id !== editingRowId)];
+        }
+
+        let mergedStart = parseSlotRangeInMinutes(replacementRows[0].slot)?.start;
+        let mergedEnd = parseSlotRangeInMinutes(replacementRows[0].slot)?.end;
+        const rowsToMerge = new Set<string>([editingRowId ?? ""]);
+        let didExpand = true;
+
+        while (didExpand && mergedStart !== undefined && mergedEnd !== undefined) {
+          didExpand = false;
+          previousRows.forEach((row) => {
+            if (rowsToMerge.has(row.id) || row.isNoStudent || row.date !== formDate) return;
+            const range = parseSlotRangeInMinutes(row.slot);
+            if (!range) return;
+            if (range.end === mergedStart) {
+              mergedStart = range.start;
+              rowsToMerge.add(row.id);
+              didExpand = true;
+            } else if (range.start === mergedEnd) {
+              mergedEnd = range.end;
+              rowsToMerge.add(row.id);
+              didExpand = true;
+            }
+          });
+        }
+
+        if (mergedStart === undefined || mergedEnd === undefined) return [...replacementRows, ...previousRows.filter((row) => row.id !== editingRowId)];
+        const mergedResult = createCustomRow({
+          id: editingRowId ?? createId(),
+          dayOfWeek: formDayOfWeek,
+          date: formDate,
+          startHour: String(Math.floor(mergedStart / 60)).padStart(2, "0"),
+          startMinute: String(mergedStart % 60).padStart(2, "0"),
+          endHour: String(Math.floor(mergedEnd / 60)).padStart(2, "0"),
+          endMinute: String(mergedEnd % 60).padStart(2, "0")
+        });
+        const mergedRow = mergedResult.row
+          ? { ...mergedResult.row, checked: Array.from(rowsToMerge).some((id) => previousRows.find((row) => row.id === id)?.checked) }
+          : replacementRows[0];
+        return [mergedRow, ...previousRows.filter((row) => !rowsToMerge.has(row.id))];
+      });
       closeModal();
       showToast("Cập nhật dòng thành công", "success");
       return;
@@ -810,7 +952,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
           return;
         }
 
-        const newRow = customRowResult.row;
+        const newRow = { ...customRowResult.row, isNoStudent: newRowIsNoStudent };
 
         const conflictType = getRowConflict([...allRowsAcrossPages, ...newRows], newRow);
         if (conflictType === "duplicate") {
@@ -824,6 +966,15 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         }
 
         newRows.push(newRow);
+      }
+
+      if (noStudentRow) {
+        const noStudentConflict = getRowConflict([...allRowsAcrossPages, ...newRows], noStudentRow);
+        if (noStudentConflict) {
+          showToast("Ca không có học sinh bị trùng hoặc chồng giờ với ca khác.", "error");
+          return;
+        }
+        newRows.push(noStudentRow);
       }
 
       setCurrentRows((previousRows) => [...newRows, ...previousRows]);
@@ -847,7 +998,7 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
       return;
     }
 
-    const newRow = customRowResult.row;
+    const newRow = { ...customRowResult.row, isNoStudent: newRowIsNoStudent };
 
     const conflictType = getRowConflict(allRowsAcrossPages, newRow);
     if (conflictType === "duplicate") {
@@ -860,7 +1011,15 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
       return;
     }
 
-    setCurrentRows((previousRows) => [newRow, ...previousRows]);
+    if (noStudentRow) {
+      const noStudentConflict = getRowConflict([...allRowsAcrossPages, newRow], noStudentRow);
+      if (noStudentConflict) {
+        showToast("Ca không có học sinh bị trùng hoặc chồng giờ với ca khác.", "error");
+        return;
+      }
+    }
+
+    setCurrentRows((previousRows) => [...(noStudentRow ? [noStudentRow] : []), newRow, ...previousRows]);
     closeModal();
     showToast("Thêm dòng thành công", "success");
   }
@@ -1005,6 +1164,8 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
       <WorkRowModal
         isOpen={isModalOpen}
         editingRowId={editingRowId}
+        isNoStudentRow={Boolean(editingRowId && currentRows.find((row) => row.id === editingRowId)?.isNoStudent)}
+        newRowIsNoStudent={newRowIsNoStudent}
         formMode={formMode}
         formDate={formDate}
         formStartHour={formStartHour}
@@ -1012,6 +1173,10 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         formEndHour={formEndHour}
         formEndMinute={formEndMinute}
         formHoursLabel={formHoursLabel}
+        noStudentShiftEnabled={noStudentShiftEnabled}
+        noStudentShiftStart={noStudentShiftStart}
+        noStudentShiftEnd={noStudentShiftEnd}
+        noStudentShiftHoursLabel={noStudentShiftCalculation.isValid ? formatHoursAsHourMinute(noStudentShiftCalculation.hours) : "--"}
         dayDefaultSettingsForFormDay={dayDefaultSettingsForFormDay}
         selectedDefaultSettingIndices={selectedDefaultSettingIndices}
         onClose={closeModal}
@@ -1025,6 +1190,10 @@ function AuthenticatedApp({ user }: { user: User }): JSX.Element {
         onStartMinuteChange={(value) => setFormStartMinute(sanitizeTimeInput(value))}
         onEndHourChange={(value) => setFormEndHour(sanitizeTimeInput(value))}
         onEndMinuteChange={(value) => setFormEndMinute(sanitizeTimeInput(value))}
+        onNoStudentShiftEnabledChange={setNoStudentShiftEnabled}
+        onNoStudentShiftStartChange={setNoStudentShiftStart}
+        onNoStudentShiftEndChange={setNoStudentShiftEnd}
+        onNewRowIsNoStudentChange={setNewRowIsNoStudent}
         onToggleDefaultSettingIndex={toggleDefaultSettingIndex}
         onToggleAllDefaultSettings={() => toggleAllDefaultSettings(dayDefaultSettingsForFormDay.length)}
       />

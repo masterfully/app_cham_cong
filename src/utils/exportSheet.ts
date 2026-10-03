@@ -37,6 +37,7 @@ export function buildExportSheetRowsForMonth(rows: WorkRow[], year: number, mont
         dayOfWeek: sortedRows[0]?.dayOfWeek ?? getDayNameFromDate(date),
         dateDisplay: formatDate(date),
         shifts: sortedRows.map((row) => row.slot).join("\n"),
+        shiftEntries: sortedRows.map((row) => ({ value: row.slot, isNoStudent: Boolean(row.isNoStudent) })),
         totalHours: Number(totalHours.toFixed(2))
       };
     });

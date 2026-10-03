@@ -7,6 +7,8 @@ type TimeWheelInputProps = {
   onChange: (value: string) => void;
   showArrows?: boolean;
   milestones?: string[];
+  singleValue?: boolean;
+  compactArrows?: boolean;
 };
 
 const DEFAULT_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
@@ -45,7 +47,9 @@ function TimeWheelInput({
   options = DEFAULT_OPTIONS,
   onChange,
   showArrows = false,
-  milestones = ["00", "15", "30", "45"]
+  milestones = ["00", "15", "30", "45"],
+  singleValue = false,
+  compactArrows = false
 }: TimeWheelInputProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const selectedValue = useMemo(() => normalizeValue(value, options), [value, options]);
@@ -96,13 +100,13 @@ function TimeWheelInput({
   }, [selectedValue, onChange, milestones]);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl border border-outline-variant/30 bg-white/80 shadow-inner">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-white/90 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-white/90 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-10 -translate-y-1/2 rounded-md border-y border-primary/25 bg-primary/10 shadow-[0_0_0_1px_rgba(214,51,132,0.06)]" />
+    <div className={`relative w-full overflow-hidden rounded-xl border border-outline-variant/30 shadow-inner ${singleValue ? "bg-white" : "bg-white/80"}`}>
+      {!singleValue ? <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-white/90 to-transparent" /> : null}
+      {!singleValue ? <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-white/90 to-transparent" /> : null}
+      <div className={`pointer-events-none absolute inset-x-0 top-1/2 z-10 h-10 -translate-y-1/2 rounded-md ${singleValue ? "border border-transparent bg-transparent shadow-none" : "border-y border-primary/25 bg-primary/10 shadow-[0_0_0_1px_rgba(214,51,132,0.06)]"}`} />
       {showArrows ? (
         <button
-          className="absolute inset-x-0 top-0 z-20 flex h-4 items-center justify-center bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+          className={`absolute inset-x-0 top-0 z-20 flex items-center justify-center bg-primary/10 text-primary transition-colors hover:bg-primary/20 ${compactArrows ? "h-2" : "h-4"}`}
           type="button"
           onClick={handleArrowUp}
         >
@@ -111,7 +115,7 @@ function TimeWheelInput({
       ) : null}
       <div
         ref={scrollRef}
-        className="no-scrollbar h-36 overflow-y-auto py-[52px] snap-y snap-mandatory touch-pan-y"
+        className={`no-scrollbar overflow-y-auto snap-y snap-mandatory touch-pan-y ${singleValue ? "h-10 py-0" : "h-36 py-[52px]"}`}
         id={id}
         onScroll={updateFromScroll}
       >
@@ -133,7 +137,7 @@ function TimeWheelInput({
       </div>
       {showArrows ? (
         <button
-          className="absolute inset-x-0 bottom-0 z-20 flex h-4 items-center justify-center bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+          className={`absolute inset-x-0 bottom-0 z-20 flex items-center justify-center bg-primary/10 text-primary transition-colors hover:bg-primary/20 ${compactArrows ? "h-2" : "h-4"}`}
           type="button"
           onClick={handleArrowDown}
         >

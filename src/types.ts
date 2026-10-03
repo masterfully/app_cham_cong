@@ -7,6 +7,7 @@ export type WorkRow = {
   slot: string;
   hours: number;
   checked: boolean;
+  isNoStudent?: boolean;
 };
 
 export type WorkRowInput = Partial<WorkRow>;
@@ -52,5 +53,6 @@ export type ExportSheetDailyRow = {
   dayOfWeek: string;
   dateDisplay: string;
   shifts: string;
+  shiftEntries: Array<{ value: string; isNoStudent: boolean }>;
   totalHours: number;
 };

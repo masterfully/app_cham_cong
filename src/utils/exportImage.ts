@@ -11,7 +11,7 @@ export function buildExportTableImage(rows: ExportSheetDailyRow[]): string {
   const widths = [92, 136, 136, 242, 166];
   const headers = ["STT", "Thứ", "Ngày", "Ca", "Tổng số giờ"];
   const headerHeight = 38;
-  const rowHeights = rows.map((row) => Math.max(40, row.shifts.split("\n").length * 24 + 16));
+  const rowHeights = rows.map((row) => Math.max(40, row.shiftEntries.length * 24 + 16));
   const totalHeight = headerHeight + rowHeights.reduce((sum, height) => sum + height, 0) + 40;
   const width = widths.reduce((sum, item) => sum + item, 0);
   const totalHours = rows.reduce((sum, row) => sum + row.totalHours, 0);
@@ -21,15 +21,16 @@ export function buildExportTableImage(rows: ExportSheetDailyRow[]): string {
   rows.forEach((row, index) => {
     const height = rowHeights[index];
     let x = 0;
-    const values = [String(row.stt), row.dayOfWeek, row.dateDisplay, row.shifts, String(row.totalHours)];
+      const values = [String(row.stt), row.dayOfWeek, row.dateDisplay, row.shifts, String(row.totalHours)];
     values.forEach((value, column) => {
       const cellWidth = widths[column];
       body.push(`<rect x="${x}" y="${y}" width="${cellWidth}" height="${height}" fill="#fff" stroke="#d1d5db"/>`);
-      const lines = value.split("\n");
+      const lines = column === 3 ? row.shiftEntries.map((entry) => entry.value) : value.split("\n");
       const lineHeight = 24;
       const startY = y + (height - lines.length * lineHeight) / 2 + 18;
       lines.forEach((line, lineIndex) => {
-        body.push(`<text x="${x + cellWidth / 2}" y="${startY + lineIndex * lineHeight}" text-anchor="middle" font-size="19" fill="#111827">${escapeXml(line)}</text>`);
+        const isNoStudent = column === 3 && row.shiftEntries[lineIndex]?.isNoStudent;
+        body.push(`<text x="${x + cellWidth / 2}" y="${startY + lineIndex * lineHeight}" text-anchor="middle" font-size="19" ${isNoStudent ? 'font-weight="700" fill="#dc2626"' : 'fill="#111827"'}>${escapeXml(line)}</text>`);
       });
       x += cellWidth;
     });

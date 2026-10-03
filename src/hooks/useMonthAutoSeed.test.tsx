@@ -17,7 +17,7 @@ function Host(props: { initialRows?: WorkRow[]; dayDefaults?: DayDefaultSetting[
 }
 
 test("seeds month when system date is first of month", async () => {
-  const { getByTestId } = render(<Host force={true} />);
+  const { getByTestId } = render(<Host force={true} dayDefaults={[{ id: "weekday", dayOfWeek: "T2", slot: "08:00 - 09:00" }]} />);
 
   await waitFor(() => {
     const txt = getByTestId("main-count").textContent ?? "0";
@@ -25,3 +25,4 @@ test("seeds month when system date is first of month", async () => {
     expect(mainCount).toBeGreaterThan(0);
   });
 });
+

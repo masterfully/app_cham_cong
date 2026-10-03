@@ -169,9 +169,15 @@ export default function PageContentSection({
         <div className="space-y-3">
           {groupedVisibleRows.map((group) => {
             const isExpanded = expandedDates.has(group.date);
+            const hasNoStudentShift = group.rows.some((row) => row.isNoStudent);
 
             return (
-              <div className="overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-low shadow-soft" key={group.date}>
+              <div
+                className={`overflow-hidden rounded-2xl bg-surface-container-low shadow-soft ${
+                  hasNoStudentShift ? "border-2 border-[#e86aa3]" : "border border-outline-variant/30"
+                }`}
+                key={group.date}
+              >
                 <div
                   className="cursor-pointer px-4 py-3 transition-colors hover:bg-surface-container"
                   onClick={() => onToggleGroup(group.date)}
@@ -245,8 +251,9 @@ export default function PageContentSection({
                     <div className="divide-y divide-outline-variant/15">
                       {group.rows.map((row, index) => {
                         const zebraClass = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
+                        const rowClass = row.isNoStudent ? "border-y-2 border-[#e86aa3] bg-primary/5" : zebraClass;
                         return (
-                          <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${zebraClass}`} key={row.id}>
+                          <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${rowClass}`} key={row.id}>
                             <div className="col-span-1 flex justify-center">
                               <input
                                 checked={row.checked}
@@ -257,7 +264,9 @@ export default function PageContentSection({
                             </div>
                             <div className="col-span-1 text-center text-sm font-bold text-primary">{row.dayOfWeek}</div>
                             <div className="col-span-2 text-center text-xs text-on-surface-variant">{formatDate(row.date)}</div>
-                            <div className="col-span-2 text-xs font-medium">{renderSlotDisplay(row.slot)}</div>
+                            <div className="col-span-2 text-xs font-medium">
+                              {renderSlotDisplay(row.slot)}
+                            </div>
                             <div className="col-span-3 text-center text-sm font-bold">{formatHoursAsHourMinute(row.hours)}</div>
                             <div className="col-span-1 flex justify-center">
                               <button

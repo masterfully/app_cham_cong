@@ -14,6 +14,10 @@ export interface WorkRowFormState {
   mode: "default" | "custom";
   editingRowId: string | null;
   selectedDefaultSettingIndices: Set<number>;
+  noStudentShiftEnabled: boolean;
+  noStudentShiftStart: string;
+  noStudentShiftEnd: string;
+  newRowIsNoStudent: boolean;
 }
 
 export interface UseWorkRowFormReturn extends WorkRowFormState {
@@ -26,10 +30,14 @@ export interface UseWorkRowFormReturn extends WorkRowFormState {
   setMode: (value: "default" | "custom") => void;
   setEditingRowId: (value: string | null) => void;
   setSelectedDefaultSettingIndices: Dispatch<SetStateAction<Set<number>>>;
+  setNoStudentShiftEnabled: (enabled: boolean) => void;
+  setNoStudentShiftStart: (value: string) => void;
+  setNoStudentShiftEnd: (value: string) => void;
+  setNewRowIsNoStudent: (value: boolean) => void;
   toggleDefaultSettingIndex: (index: number) => void;
   toggleAllDefaultSettings: (totalCount: number) => void;
   resetForm: () => void;
-  setFormFromRow: (rowId: string, dayOfWeek: string, date: string, slot: string, matchedSettingIndex?: number) => void;
+  setFormFromRow: (rowId: string, dayOfWeek: string, date: string, slot: string, matchedSettingIndex?: number, isNoStudent?: boolean) => void;
 }
 
 export function useWorkRowForm(): UseWorkRowFormReturn {
@@ -45,6 +53,10 @@ export function useWorkRowForm(): UseWorkRowFormReturn {
   const [mode, setMode] = useState<"default" | "custom">("default");
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [selectedDefaultSettingIndices, setSelectedDefaultSettingIndices] = useState<Set<number>>(() => new Set());
+  const [noStudentShiftEnabled, setNoStudentShiftEnabled] = useState(false);
+  const [noStudentShiftStart, setNoStudentShiftStart] = useState("16:00");
+  const [noStudentShiftEnd, setNoStudentShiftEnd] = useState("17:00");
+  const [newRowIsNoStudent, setNewRowIsNoStudent] = useState(false);
 
   function toggleDefaultSettingIndex(index: number): void {
     setSelectedDefaultSettingIndices((prev) => {
@@ -80,9 +92,11 @@ export function useWorkRowForm(): UseWorkRowFormReturn {
     setEndMinute(DEFAULT_SLOT_PARTS.endMinute);
     setMode("default");
     setSelectedDefaultSettingIndices(new Set());
+    setNoStudentShiftEnabled(false);
+    setNewRowIsNoStudent(false);
   }
 
-  function setFormFromRow(rowId: string, rowDayOfWeek: string, rowDate: string, slot: string, matchedSettingIndex?: number): void {
+  function setFormFromRow(rowId: string, rowDayOfWeek: string, rowDate: string, slot: string, matchedSettingIndex?: number, isNoStudent = false): void {
     setEditingRowId(rowId);
     setDayOfWeek(rowDayOfWeek);
     setDate(rowDate);
@@ -99,6 +113,8 @@ export function useWorkRowForm(): UseWorkRowFormReturn {
     setEndMinute(String(endM));
     
     setSelectedDefaultSettingIndices(matchedSettingIndex !== undefined && matchedSettingIndex >= 0 ? new Set([matchedSettingIndex]) : new Set());
+    setNoStudentShiftEnabled(false);
+    setNewRowIsNoStudent(isNoStudent);
   }
 
   return {
@@ -111,6 +127,10 @@ export function useWorkRowForm(): UseWorkRowFormReturn {
     mode,
     editingRowId,
     selectedDefaultSettingIndices,
+    noStudentShiftEnabled,
+    noStudentShiftStart,
+    noStudentShiftEnd,
+    newRowIsNoStudent,
     setDayOfWeek,
     setDate,
     setStartHour,
@@ -120,6 +140,10 @@ export function useWorkRowForm(): UseWorkRowFormReturn {
     setMode,
     setEditingRowId,
     setSelectedDefaultSettingIndices,
+    setNoStudentShiftEnabled,
+    setNoStudentShiftStart,
+    setNoStudentShiftEnd,
+    setNewRowIsNoStudent,
     toggleDefaultSettingIndex,
     toggleAllDefaultSettings,
     resetForm,
