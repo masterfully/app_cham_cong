@@ -251,9 +251,13 @@ export default function PageContentSection({
                     <div className="divide-y divide-outline-variant/15">
                       {group.rows.map((row, index) => {
                         const zebraClass = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low";
-                        const rowClass = row.isNoStudent ? "border-y-2 border-[#e86aa3] bg-primary/5" : zebraClass;
+                        const rowClass = row.isNoStudent ? "bg-primary/5" : zebraClass;
                         return (
-                          <div className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${rowClass}`} key={row.id}>
+                          <div
+                            className={`grid grid-cols-[repeat(11,minmax(0,1fr))] items-center gap-2 px-4 py-4 text-center ${rowClass}`}
+                            key={row.id}
+                            style={row.isNoStudent ? { boxShadow: "inset 0 2px #e86aa3, inset 0 -2px #e86aa3" } : undefined}
+                          >
                             <div className="col-span-1 flex justify-center">
                               <input
                                 checked={row.checked}
