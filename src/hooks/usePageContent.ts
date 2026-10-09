@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { WorkRow, FilterType, WorkRowGroup, DayDefaultSetting } from "../types";
 import { getCurrentYearMonth, getDayNameFromDate, isInFilter, isInYearMonth } from "../utils/date";
+import { parseSlotRangeInMinutes } from "../utils/time";
 
 interface UsePageContentState {
   rows: WorkRow[];
@@ -42,14 +43,20 @@ export function usePageContent(state: UsePageContentState) {
         return sortAscending ? comparison : -comparison;
       })
       .map(([date, rowsInDate]) => {
-        const totalHours = rowsInDate.reduce((sum, row) => sum + Number(row.hours), 0);
-        const checkedCount = rowsInDate.reduce((sum, row) => sum + (row.checked ? 1 : 0), 0);
+        const sortedRows = [...rowsInDate].sort((left, right) => {
+          const leftStart = parseSlotRangeInMinutes(left.slot)?.start;
+          const rightStart = parseSlotRangeInMinutes(right.slot)?.start;
+          if (leftStart === undefined || rightStart === undefined) return left.slot.localeCompare(right.slot);
+          return leftStart - rightStart;
+        });
+        const totalHours = sortedRows.reduce((sum, row) => sum + Number(row.hours), 0);
+        const checkedCount = sortedRows.reduce((sum, row) => sum + (row.checked ? 1 : 0), 0);
 
         return {
           date,
-          dayOfWeek: rowsInDate[0]?.dayOfWeek ?? getDayNameFromDate(date),
-          rows: rowsInDate,
-          shiftCount: rowsInDate.length,
+          dayOfWeek: sortedRows[0]?.dayOfWeek ?? getDayNameFromDate(date),
+          rows: sortedRows,
+          shiftCount: sortedRows.length,
           checkedCount,
           totalHours
         };
