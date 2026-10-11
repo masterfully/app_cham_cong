@@ -14,7 +14,7 @@ export function usePageContent(state: UsePageContentState) {
   const [activeFilter, setActiveFilter] = useState<FilterType>(state.activeFilter);
   // search removed — page content will rely only on filters
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
-  const [sortAscending, setSortAscending] = useState(false);
+  const [sortAscending, setSortAscending] = useState(true);
 
   const visibleRows = useMemo(() => {
     if (activeFilter === "month") {
